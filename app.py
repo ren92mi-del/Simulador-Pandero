@@ -75,7 +75,7 @@ Ahora genera la siguiente intervención del cliente.
 """
 
     resultado = cliente.models.generate_content(
-        model="gemini-3.7-flash",
+        model="gemini-flash-latest",
         contents=instrucciones
     )
 
