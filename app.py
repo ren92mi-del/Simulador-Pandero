@@ -1,26 +1,19 @@
 import streamlit as st
+from streamlit_mic_recorder import speech_to_text
+from gtts import gTTS
+from io import BytesIO
 
 st.set_page_config(
     page_title="Simulador Pandero ATC",
-    page_icon="🎧",
-    layout="centered"
+    page_icon="🎧"
 )
 
-st.title("🎧 Simulador IA de Pandero ATC")
-st.write("Plataforma de práctica para asesores en formación")
-
-st.info(
-    "Versión inicial: práctica guiada. "
-    "La evaluación es orientativa y debe validarse con Calidad."
-)
+st.title("🎧 Simulador Pandero ATC")
+st.write("Práctica de atención al cliente por voz")
 
 tema = st.selectbox(
     "Selecciona el escenario",
-    [
-        "Aplicación de remate",
-        "Consulta de estado de cuenta",
-        "Cuotas pendientes"
-    ]
+    ["Aplicación de remate"]
 )
 
 if "historial" not in st.session_state:
@@ -29,62 +22,118 @@ if "historial" not in st.session_state:
 if "iniciado" not in st.session_state:
     st.session_state.iniciado = False
 
+if "respuesta_cliente" not in st.session_state:
+    st.session_state.respuesta_cliente = ""
+
+def hablar(texto):
+    audio = BytesIO()
+    gTTS(text=texto, lang="es").write_to_fp(audio)
+    audio.seek(0)
+    st.audio(audio.getvalue(), format="audio/mp3")
+
 if st.button("Iniciar llamada"):
     st.session_state.historial = []
     st.session_state.iniciado = True
 
-    st.session_state.historial.append({
-        "rol": "Cliente",
-        "mensaje": (
-            "Buenas tardes. Quisiera saber cómo se aplicará "
-            "el dinero de mi remate a mis cuotas."
-            if tema == "Aplicación de remate"
-            else "Buenas tardes. Tengo una consulta sobre mi cuenta."
-        )
-    })
+    saludo = (
+        "Buenas tardes. Quisiera saber cómo se aplicará "
+        "el dinero de mi remate a mis cuotas."
+    )
+
+    st.session_state.historial.append(
+        {"rol": "Cliente", "mensaje": saludo}
+    )
+    st.session_state.respuesta_cliente = saludo
 
 if st.session_state.iniciado:
-    st.subheader("Conversación")
+    st.subheader("Llamada en curso")
 
-    for mensaje in st.session_state.historial:
+    if st.session_state.respuesta_cliente:
         st.markdown(
-            f"**{mensaje['rol']}:** {mensaje['mensaje']}"
+            "**Cliente virtual:** "
+            + st.session_state.respuesta_cliente
+        )
+        hablar(st.session_state.respuesta_cliente)
+
+        st.session_state.respuesta_cliente = ""
+
+    for item in st.session_state.historial:
+        st.markdown(f"**{item['rol']}:** {item['mensaje']}")
+
+    st.write("Pulsa el micrófono y responde como asesor:")
+
+    texto_asesor = speech_to_text(
+        language="es",
+        start_prompt="🎙️ Hablar",
+        stop_prompt="⏹️ Terminar grabación",
+        just_once=True,
+        key="microfono_asesor"
+    )
+
+    if texto_asesor:
+        ultimo = (
+            st.session_state.historial[-1]["mensaje"]
+            if st.session_state.historial
+            else ""
         )
 
-    with st.form("respuesta_asesor", clear_on_submit=True):
-        respuesta = st.text_input(
-            "Respuesta del asesor",
-            placeholder="Escribe aquí tu respuesta..."
-        )
-        enviar = st.form_submit_button("Responder")
-
-    if enviar and respuesta.strip():
-        st.session_state.historial.append({
-            "rol": "Asesor",
-            "mensaje": respuesta.strip()
-        })
-
-        st.session_state.historial.append({
-            "rol": "Cliente",
-            "mensaje": (
-                "Entiendo. ¿Podría explicarme con más detalle "
-                "cómo se aplicará el importe?"
+        if (
+            not st.session_state.historial
+            or st.session_state.historial[-1]["rol"] != "Asesor"
+            or st.session_state.historial[-1]["mensaje"] != texto_asesor
+        ):
+            st.session_state.historial.append(
+                {"rol": "Asesor", "mensaje": texto_asesor}
             )
-        })
 
-        st.rerun()
+            respuesta = (
+                "Comprendo. ¿Podría explicarme si la aplicación "
+                "que elegí se puede cambiar después?"
+            )
 
-    if st.button("Finalizar práctica"):
+            if any(
+                palabra in texto_asesor.lower()
+                for palabra in ["buenas tardes", "buenos días", "hola"]
+            ):
+                respuesta = (
+                    "Buenas tardes. Quisiera saber cómo se aplicará "
+                    "el dinero de mi remate a mis cuotas."
+                )
+
+            st.session_state.historial.append(
+                {"rol": "Cliente", "mensaje": respuesta}
+            )
+            st.session_state.respuesta_cliente = respuesta
+            st.rerun()
+
+    if st.button("Finalizar llamada"):
         st.session_state.iniciado = False
+
+        intervenciones = [
+            x for x in st.session_state.historial
+            if x["rol"] == "Asesor"
+        ]
+
         st.subheader("Resumen de la práctica")
         st.write(
-            f"Escenario: {tema}. "
-            f"Intervenciones registradas: "
-            f"{len(st.session_state.historial)}."
-        )
-        st.warning(
-            "Esta versión todavía no calcula una nota automática "
-            "ni verifica políticas oficiales."
+            f"Intervenciones del asesor: {len(intervenciones)}"
         )
 
-st.caption("Prototipo educativo. No sustituye la evaluación oficial.")
+        st.warning(
+            "Esta versión no asigna una nota de calidad ni valida "
+            "las políticas oficiales de Pandero."
+        )
+
+        st.download_button(
+            "Descargar transcripción",
+            data="\n".join(
+                f"{x['rol']}: {x['mensaje']}"
+                for x in st.session_state.historial
+            ),
+            file_name="practica_atc.txt",
+            mime="text/plain"
+        )
+
+st.caption(
+    "Prototipo educativo. No usar con datos reales de clientes."
+)
