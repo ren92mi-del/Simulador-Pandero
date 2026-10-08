@@ -16,23 +16,29 @@ tema = st.selectbox(
     ["Aplicación de remate"]
 )
 
+# Crear estados de la sesión
 if "historial" not in st.session_state:
     st.session_state.historial = []
 
 if "iniciado" not in st.session_state:
     st.session_state.iniciado = False
 
+if "turno" not in st.session_state:
+    st.session_state.turno = 0
+
 if "respuesta_cliente" not in st.session_state:
     st.session_state.respuesta_cliente = ""
 
-def hablar(texto):
+def generar_audio(texto):
     audio = BytesIO()
     gTTS(text=texto, lang="es").write_to_fp(audio)
     audio.seek(0)
-    st.audio(audio.getvalue(), format="audio/mp3")
+    return audio.getvalue()
 
+# Iniciar llamada
 if st.button("Iniciar llamada"):
     st.session_state.historial = []
+    st.session_state.turno = 0
     st.session_state.iniciado = True
 
     saludo = (
@@ -40,100 +46,101 @@ if st.button("Iniciar llamada"):
         "el dinero de mi remate a mis cuotas."
     )
 
-    st.session_state.historial.append(
-        {"rol": "Cliente", "mensaje": saludo}
-    )
-    st.session_state.respuesta_cliente = saludo
+    st.session_state.historial.append({
+        "rol": "Cliente",
+        "mensaje": saludo
+    })
 
+    st.session_state.respuesta_cliente = saludo
+    st.rerun()
+
+# Mostrar conversación
 if st.session_state.iniciado:
+
     st.subheader("Llamada en curso")
 
+    # Reproducir la respuesta nueva del cliente una sola vez
     if st.session_state.respuesta_cliente:
-        st.markdown(
-            "**Cliente virtual:** "
-            + st.session_state.respuesta_cliente
-        )
-        hablar(st.session_state.respuesta_cliente)
+        texto = st.session_state.respuesta_cliente
+        st.markdown("**Cliente virtual:** " + texto)
+
+        try:
+            st.audio(generar_audio(texto), format="audio/mp3")
+        except Exception:
+            st.warning(
+                "No se pudo generar el audio. "
+                "Puedes continuar con la conversación."
+            )
 
         st.session_state.respuesta_cliente = ""
 
+    # Mostrar el historial
     for item in st.session_state.historial:
         st.markdown(f"**{item['rol']}:** {item['mensaje']}")
 
-    st.write("Pulsa el micrófono y responde como asesor:")
+    st.divider()
+    st.write("🎙️ Pulsa el micrófono y responde como asesor.")
 
+    # IMPORTANTE: la clave cambia después de cada respuesta.
+    # Así se crea un nuevo control de grabación para cada turno.
     texto_asesor = speech_to_text(
         language="es",
-        start_prompt="🎙️ Hablar",
+        start_prompt="🎙️ Grabar respuesta",
         stop_prompt="⏹️ Terminar grabación",
         just_once=True,
-        key="microfono_asesor"
+        key=f"microfono_asesor_{st.session_state.turno}"
     )
 
     if texto_asesor:
-        ultimo = (
-            st.session_state.historial[-1]["mensaje"]
-            if st.session_state.historial
-            else ""
+        # Guardar respuesta del asesor
+        st.session_state.historial.append({
+            "rol": "Asesor",
+            "mensaje": texto_asesor
+        })
+
+        # Respuesta guiada de prueba
+        respuesta = (
+            "Entiendo. ¿Podría explicarme si la modalidad "
+            "que elegí para aplicar mi remate se puede cambiar?"
         )
 
-        if (
-            not st.session_state.historial
-            or st.session_state.historial[-1]["rol"] != "Asesor"
-            or st.session_state.historial[-1]["mensaje"] != texto_asesor
-        ):
-            st.session_state.historial.append(
-                {"rol": "Asesor", "mensaje": texto_asesor}
-            )
+        st.session_state.historial.append({
+            "rol": "Cliente",
+            "mensaje": respuesta
+        })
 
-            respuesta = (
-                "Comprendo. ¿Podría explicarme si la aplicación "
-                "que elegí se puede cambiar después?"
-            )
+        st.session_state.respuesta_cliente = respuesta
 
-            if any(
-                palabra in texto_asesor.lower()
-                for palabra in ["buenas tardes", "buenos días", "hola"]
-            ):
-                respuesta = (
-                    "Buenas tardes. Quisiera saber cómo se aplicará "
-                    "el dinero de mi remate a mis cuotas."
-                )
-
-            st.session_state.historial.append(
-                {"rol": "Cliente", "mensaje": respuesta}
-            )
-            st.session_state.respuesta_cliente = respuesta
-            st.rerun()
+        # Preparar un micrófono nuevo para el siguiente turno
+        st.session_state.turno += 1
+        st.rerun()
 
     if st.button("Finalizar llamada"):
         st.session_state.iniciado = False
-
-        intervenciones = [
-            x for x in st.session_state.historial
-            if x["rol"] == "Asesor"
-        ]
+        st.session_state.respuesta_cliente = ""
 
         st.subheader("Resumen de la práctica")
-        st.write(
-            f"Intervenciones del asesor: {len(intervenciones)}"
+
+        total = sum(
+            1 for item in st.session_state.historial
+            if item["rol"] == "Asesor"
         )
 
-        st.warning(
-            "Esta versión no asigna una nota de calidad ni valida "
-            "las políticas oficiales de Pandero."
+        st.write(f"Respuestas registradas del asesor: {total}")
+
+        transcripcion = "\n".join(
+            f"{item['rol']}: {item['mensaje']}"
+            for item in st.session_state.historial
         )
 
         st.download_button(
             "Descargar transcripción",
-            data="\n".join(
-                f"{x['rol']}: {x['mensaje']}"
-                for x in st.session_state.historial
-            ),
+            data=transcripcion,
             file_name="practica_atc.txt",
             mime="text/plain"
         )
 
 st.caption(
-    "Prototipo educativo. No usar con datos reales de clientes."
+    "Prototipo educativo. Las respuestas del cliente son guiadas; "
+    "todavía no constituyen una evaluación oficial de calidad."
 )
