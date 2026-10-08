@@ -1,5 +1,6 @@
 import streamlit as st
 from streamlit_mic_recorder import speech_to_text
+from google import genai
 from gtts import gTTS
 from io import BytesIO
 
@@ -16,7 +17,6 @@ tema = st.selectbox(
     ["Aplicación de remate"]
 )
 
-# Crear estados de la sesión
 if "historial" not in st.session_state:
     st.session_state.historial = []
 
@@ -26,8 +26,9 @@ if "iniciado" not in st.session_state:
 if "turno" not in st.session_state:
     st.session_state.turno = 0
 
-if "respuesta_cliente" not in st.session_state:
-    st.session_state.respuesta_cliente = ""
+if "error_ia" not in st.session_state:
+    st.session_state.error_ia = ""
+
 
 def generar_audio(texto):
     audio = BytesIO()
@@ -35,10 +36,59 @@ def generar_audio(texto):
     audio.seek(0)
     return audio.getvalue()
 
-# Iniciar llamada
+
+def generar_respuesta_cliente(historial, escenario):
+    cliente = genai.Client(
+        api_key=st.secrets["GEMINI_API_KEY"]
+    )
+
+    conversacion = "\n".join(
+        f"{item['rol']}: {item['mensaje']}"
+        for item in historial
+    )
+
+    instrucciones = f"""
+Eres un cliente que llama a atención al cliente
+de Pandero en Perú.
+
+Escenario de práctica: {escenario}
+
+Tu papel es exclusivamente el de cliente.
+No eres asesor ni evaluador.
+
+REGLAS:
+- Habla en español peruano natural y sencillo.
+- Responde a lo que acaba de decir el asesor.
+- Mantén el contexto de toda la conversación.
+- Haz preguntas realistas y plantea dudas si corresponde.
+- Si la explicación no es clara, pide que te la aclaren.
+- No repitas siempre la misma pregunta.
+- No inventes políticas, montos ni procedimientos de Pandero.
+- No des instrucciones al asesor sobre cómo debe atender.
+- Responde brevemente, como en una llamada real.
+- Escribe únicamente lo que diría el cliente, en 1 a 3 frases.
+
+Historial de la llamada:
+{conversacion}
+
+Ahora genera la siguiente intervención del cliente.
+"""
+
+    resultado = cliente.models.generate_content(
+        model="gemini-3.7-flash",
+        contents=instrucciones
+    )
+
+    if not resultado.text:
+        raise ValueError("La IA no generó una respuesta.")
+
+    return resultado.text.strip()
+
+
 if st.button("Iniciar llamada"):
     st.session_state.historial = []
     st.session_state.turno = 0
+    st.session_state.error_ia = ""
     st.session_state.iniciado = True
 
     saludo = (
@@ -51,38 +101,38 @@ if st.button("Iniciar llamada"):
         "mensaje": saludo
     })
 
-    st.session_state.respuesta_cliente = saludo
     st.rerun()
 
-# Mostrar conversación
+
 if st.session_state.iniciado:
+    st.subheader("📞 Llamada en curso")
 
-    st.subheader("Llamada en curso")
+    for item in st.session_state.historial:
+        st.markdown(
+            f"**{item['rol']}:** {item['mensaje']}"
+        )
 
-    # Reproducir la respuesta nueva del cliente una sola vez
-    if st.session_state.respuesta_cliente:
-        texto = st.session_state.respuesta_cliente
-        st.markdown("**Cliente virtual:** " + texto)
+    # Reproducir la voz de la última intervención del cliente
+    if (
+        st.session_state.historial
+        and st.session_state.historial[-1]["rol"] == "Cliente"
+    ):
+        ultimo_mensaje = st.session_state.historial[-1]["mensaje"]
 
         try:
-            st.audio(generar_audio(texto), format="audio/mp3")
+            st.audio(
+                generar_audio(ultimo_mensaje),
+                format="audio/mp3"
+            )
         except Exception:
             st.warning(
                 "No se pudo generar el audio. "
-                "Puedes continuar con la conversación."
+                "Puedes continuar con la práctica."
             )
-
-        st.session_state.respuesta_cliente = ""
-
-    # Mostrar el historial
-    for item in st.session_state.historial:
-        st.markdown(f"**{item['rol']}:** {item['mensaje']}")
 
     st.divider()
     st.write("🎙️ Pulsa el micrófono y responde como asesor.")
 
-    # IMPORTANTE: la clave cambia después de cada respuesta.
-    # Así se crea un nuevo control de grabación para cada turno.
     texto_asesor = speech_to_text(
         language="es",
         start_prompt="🎙️ Grabar respuesta",
@@ -92,46 +142,48 @@ if st.session_state.iniciado:
     )
 
     if texto_asesor:
-        # Guardar respuesta del asesor
         st.session_state.historial.append({
             "rol": "Asesor",
             "mensaje": texto_asesor
         })
 
-        # Respuesta guiada de prueba
-        respuesta = (
-            "Entiendo. ¿Podría explicarme si la modalidad "
-            "que elegí para aplicar mi remate se puede cambiar?"
-        )
+        try:
+            with st.spinner("El cliente está respondiendo..."):
+                respuesta = generar_respuesta_cliente(
+                    st.session_state.historial,
+                    tema
+                )
+
+            st.session_state.error_ia = ""
+
+        except Exception:
+            respuesta = (
+                "Disculpe, parece que hubo un problema "
+                "de comunicación. ¿Podría explicármelo nuevamente?"
+            )
+            st.session_state.error_ia = (
+                "No se pudo conectar con Gemini. "
+                "Revisa la clave, el modelo y los límites de uso."
+            )
 
         st.session_state.historial.append({
             "rol": "Cliente",
             "mensaje": respuesta
         })
 
-        st.session_state.respuesta_cliente = respuesta
-
-        # Preparar un micrófono nuevo para el siguiente turno
         st.session_state.turno += 1
         st.rerun()
 
+    if st.session_state.error_ia:
+        st.warning(st.session_state.error_ia)
+
     if st.button("Finalizar llamada"):
-        st.session_state.iniciado = False
-        st.session_state.respuesta_cliente = ""
-
-        st.subheader("Resumen de la práctica")
-
-        total = sum(
-            1 for item in st.session_state.historial
-            if item["rol"] == "Asesor"
-        )
-
-        st.write(f"Respuestas registradas del asesor: {total}")
-
         transcripcion = "\n".join(
             f"{item['rol']}: {item['mensaje']}"
             for item in st.session_state.historial
         )
+
+        st.session_state.iniciado = False
 
         st.download_button(
             "Descargar transcripción",
@@ -141,6 +193,6 @@ if st.session_state.iniciado:
         )
 
 st.caption(
-    "Prototipo educativo. Las respuestas del cliente son guiadas; "
-    "todavía no constituyen una evaluación oficial de calidad."
+    "Prototipo educativo. Las respuestas de IA pueden contener "
+    "errores y todavía no constituyen una evaluación oficial de calidad."
 )
