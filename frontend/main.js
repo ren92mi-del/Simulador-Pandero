@@ -1,6 +1,6 @@
 "use strict";
 
-console.info("Simulador Pandero main.js build 2026-10-09");
+console.info("Simulador Pandero main.js build 2026-10-09 Excel profiles");
 
 const botonIniciar = document.getElementById("iniciar");
 const botonFinalizar = document.getElementById("finalizar");
@@ -8,7 +8,11 @@ const estado = document.getElementById("estado");
 const panelDescargas = document.getElementById("descargas");
 const enlaceAudio = document.getElementById("descargarAudio");
 const enlaceTexto = document.getElementById("descargarTexto");
+const archivoAsociados = document.getElementById("archivoAsociados");
+const botonCargarAsociados = document.getElementById("cargarAsociados");
+const estadoBase = document.getElementById("estadoBase");
 
+let baseCargada = false;
 let conexion = null;
 let microfono = null;
 let contextoAudio = null;
@@ -43,6 +47,66 @@ function guardarTexto(tipo, texto) {
         tipo,
         texto: texto.trim()
     });
+}
+
+function mostrarEstadoBase(mensaje) {
+    if (estadoBase) estadoBase.textContent = mensaje;
+}
+
+async function consultarEstadoBase() {
+    try {
+        const respuesta = await fetch("/api/asociados/estado", {
+            cache: "no-store"
+        });
+        if (!respuesta.ok) throw new Error("No se pudo consultar el estado de la base.");
+        const datos = await respuesta.json();
+        baseCargada = Boolean(datos.cargada && datos.cantidad > 0);
+        botonIniciar.disabled = !baseCargada;
+        mostrarEstadoBase(baseCargada
+            ? "Base lista: " + datos.cantidad + " asociados cargados (" + datos.archivo + "). Cada llamada usará un perfil aleatorio."
+            : "Debes cargar una base Excel para iniciar una llamada.");
+    } catch (error) {
+        baseCargada = false;
+        botonIniciar.disabled = true;
+        mostrarEstadoBase("No se pudo verificar la base. Recarga la página o vuelve a cargar el Excel.");
+        console.error("Error consultando la base:", error);
+    }
+}
+
+async function cargarBaseAsociados() {
+    const archivo = archivoAsociados?.files?.[0];
+    if (!archivo) {
+        mostrarEstadoBase("Primero selecciona un archivo Excel (.xlsx).");
+        return;
+    }
+
+    botonCargarAsociados.disabled = true;
+    mostrarEstadoBase("Cargando y validando el archivo Excel...");
+
+    try {
+        const formulario = new FormData();
+        formulario.append("archivo", archivo);
+
+        const respuesta = await fetch("/api/asociados", {
+            method: "POST",
+            body: formulario
+        });
+        const datos = await respuesta.json();
+
+        if (!respuesta.ok) {
+            throw new Error(datos.detail || "No se pudo cargar el archivo.");
+        }
+
+        baseCargada = true;
+        botonIniciar.disabled = false;
+        mostrarEstadoBase(datos.mensaje + " La ficha completa no se muestra en pantalla.");
+        archivoAsociados.value = "";
+    } catch (error) {
+        mostrarEstadoBase("Error: " + error.message);
+        console.error("Error cargando Excel:", error);
+    } finally {
+        botonCargarAsociados.disabled = false;
+    }
 }
 
 function convertirAudio(entrada, frecuencia) {
@@ -356,6 +420,11 @@ function detenerLlamada(mensaje = "Llamada finalizada.") {
 async function iniciarLlamada() {
     if (llamadaActiva || iniciando) return;
 
+    if (!baseCargada) {
+        mostrarEstado("Primero carga una base de asociados en Excel (.xlsx).");
+        return;
+    }
+
     iniciando = true;
     const intento = ++numeroIntento;
 
@@ -566,10 +635,16 @@ function configurarSimulador() {
         return;
     }
 
-    botonIniciar.disabled = false;
+    botonIniciar.disabled = true;
     botonFinalizar.disabled = true;
 
     botonIniciar.addEventListener("click", iniciarLlamada);
+
+    if (botonCargarAsociados) {
+        botonCargarAsociados.addEventListener("click", cargarBaseAsociados);
+    }
+
+    consultarEstadoBase();
 
     botonFinalizar.addEventListener("click", () => {
         detenerLlamada("Llamada finalizada.");
