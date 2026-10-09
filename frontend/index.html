@@ -1,10 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulador de Atención Pandero</title>
+
     <style>
         * {
             box-sizing: border-box;
@@ -88,8 +88,14 @@
             margin: 12px 0;
             color: #0759a5;
         }
+
+        #descargas h2 {
+            color: #073b7a;
+            font-size: 20px;
+        }
     </style>
 </head>
+
 <body>
     <main class="contenedor">
         <h1>Simulador de Atención Pandero</h1>
@@ -114,10 +120,22 @@
 
         <section id="descargas" hidden>
             <h2>Descargas de la llamada</h2>
-            <a id="descargarAudio" href="#" download="llamada-pandero.webm" style="display:none">
+
+            <a
+                id="descargarAudio"
+                href="#"
+                download="llamada-pandero.webm"
+                style="display: none"
+            >
                 Descargar audio de la llamada
             </a>
-            <a id="descargarTexto" href="#" download="transcripcion-pandero.txt" style="display:none">
+
+            <a
+                id="descargarTexto"
+                href="#"
+                download="transcripcion-pandero.txt"
+                style="display: none"
+            >
                 Descargar transcripción
             </a>
         </section>
