@@ -2,3 +2,5 @@ streamlit
 streamlit-mic-recorder
 gTTS
 google-genai
+fastapi
+uvicorn[standard]
