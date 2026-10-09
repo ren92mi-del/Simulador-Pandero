@@ -1,9 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>Simulador Pandero ATC</title>
 
   <style>
@@ -59,6 +59,7 @@
       border-radius: 10px;
       margin: 20px 0;
       color: #17345b;
+      overflow-wrap: anywhere;
     }
 
     button {
@@ -81,20 +82,26 @@
       color: #17345b;
     }
 
+    .descargar {
+      background: #073b75;
+      color: white;
+    }
+
     button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
 
-    .conversacion {
+    .descargas {
       margin-top: 25px;
-      padding: 18px;
+      padding: 20px;
       background: #f8fafc;
-      border-radius: 10px;
-      text-align: left;
-      min-height: 100px;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
+      border: 1px solid #dce3ec;
+      border-radius: 12px;
+    }
+
+    .descargas h3 {
+      margin-top: 0;
     }
 
     .nota {
@@ -102,6 +109,26 @@
       font-size: 13px;
       line-height: 1.5;
       margin-top: 22px;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 480px) {
+      main {
+        margin: 15px auto;
+        padding: 12px;
+      }
+
+      .panel {
+        padding: 20px 14px;
+      }
+
+      button {
+        width: 100%;
+        margin: 6px 0;
+      }
     }
   </style>
 </head>
@@ -135,12 +162,36 @@
         Finalizar llamada
       </button>
 
-      <div class="conversacion" id="conversacion">Aquí aparecerá la conversación entre el asesor y el cliente.</div>
+      <section class="descargas" id="descargas" hidden>
+        <h3>📁 Descargas de la llamada</h3>
+
+        <p>
+          La llamada ha finalizado. Puedes descargar
+          los archivos para revisar la práctica.
+        </p>
+
+        <button
+          class="descargar"
+          id="descargarAudio"
+          disabled
+        >
+          Descargar audio
+        </button>
+
+        <button
+          class="descargar"
+          id="descargarTexto"
+          disabled
+        >
+          Descargar transcripción
+        </button>
+      </section>
 
       <p class="nota">
-        Prototipo de entrenamiento. La conexión de voz
-        con la inteligencia artificial requiere que el
-        servidor esté configurado y en funcionamiento.
+        Simulador de entrenamiento. El audio se prepara
+        temporalmente en el navegador y no se guarda
+        permanentemente en Render. La grabación puede
+        contener la voz del asesor y la del cliente simulado.
       </p>
     </section>
   </main>
