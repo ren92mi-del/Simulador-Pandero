@@ -74,15 +74,43 @@ Historial de la llamada:
 Ahora genera la siguiente intervención del cliente.
 """
 
-    resultado = cliente.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=instrucciones
+    modelos = [
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
+        "gemini-3.6-flash"
+    ]
+
+    ultimo_error = None
+
+    for modelo in modelos:
+        try:
+            resultado = cliente.models.generate_content(
+                model=modelo,
+                contents=instrucciones
+            )
+
+            if resultado.text:
+                return resultado.text.strip()
+
+            raise ValueError(
+                f"El modelo {modelo} no generó una respuesta."
+            )
+
+        except Exception as e:
+            ultimo_error = e
+            mensaje_error = str(e).upper()
+
+            if (
+                "503" not in mensaje_error
+                and "UNAVAILABLE" not in mensaje_error
+            ):
+                raise
+
+    raise RuntimeError(
+        "Los modelos de Gemini no están disponibles "
+        "en este momento. Intenta nuevamente más tarde. "
+        f"Último error: {ultimo_error}"
     )
-
-    if not resultado.text:
-        raise ValueError("La IA no generó una respuesta.")
-
-    return resultado.text.strip()
 
 
 if st.button("Iniciar llamada"):
@@ -112,7 +140,6 @@ if st.session_state.iniciado:
             f"**{item['rol']}:** {item['mensaje']}"
         )
 
-    # Reproducir la voz de la última intervención del cliente
     if (
         st.session_state.historial
         and st.session_state.historial[-1]["rol"] == "Cliente"
@@ -160,8 +187,9 @@ if st.session_state.iniciado:
 
         except Exception as e:
             respuesta = (
-                "Disculpe, parece que hubo un problema "
-                "de comunicación. ¿Podría explicármelo nuevamente?"
+                "Disculpe, estoy teniendo un problema "
+                "de comunicación. ¿Podría intentarlo "
+                "nuevamente en un momento?"
             )
 
             st.session_state.error_ia = (
@@ -177,7 +205,7 @@ if st.session_state.iniciado:
         st.rerun()
 
     if st.session_state.error_ia:
-        st.warning(st.session_state.error_ia)
+        st.error(st.session_state.error_ia)
 
     if st.button("Finalizar llamada"):
         transcripcion = "\n".join(
