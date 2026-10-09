@@ -1,201 +1,128 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Atención Pandero</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
 
-  <title>Simulador Pandero ATC</title>
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: Arial, sans-serif;
+            background: #f3f6fb;
+            color: #172b4d;
+        }
 
-  <style>
-    * {
-      box-sizing: border-box;
-    }
+        .contenedor {
+            max-width: 650px;
+            margin: 35px auto;
+            padding: 28px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 5px 22px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
 
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f2f5f9;
-      color: #17345b;
-    }
+        h1 {
+            margin-top: 0;
+            color: #073b7a;
+        }
 
-    header {
-      background: #073b75;
-      color: white;
-      padding: 22px;
-      text-align: center;
-    }
+        .descripcion {
+            color: #52647a;
+            line-height: 1.6;
+        }
 
-    header h1 {
-      margin: 0;
-      font-size: 25px;
-    }
+        #estado {
+            margin: 24px 0;
+            padding: 14px;
+            border-radius: 8px;
+            background: #edf4ff;
+            color: #073b7a;
+            text-align: left;
+            overflow-wrap: anywhere;
+        }
 
-    header p {
-      margin-bottom: 0;
-    }
+        .botones {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
 
-    main {
-      max-width: 650px;
-      margin: 35px auto;
-      padding: 25px;
-    }
+        button {
+            padding: 13px 22px;
+            border: 0;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
 
-    .panel {
-      background: white;
-      border-radius: 16px;
-      padding: 25px;
-      box-shadow: 0 4px 18px #00000012;
-      text-align: center;
-    }
+        #iniciar {
+            background: #087443;
+        }
 
-    .icono {
-      font-size: 55px;
-      margin: 10px 0;
-    }
+        #finalizar {
+            background: #c62828;
+        }
 
-    .estado {
-      background: #edf3fa;
-      padding: 13px;
-      border-radius: 10px;
-      margin: 20px 0;
-      color: #17345b;
-      overflow-wrap: anywhere;
-    }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
-    button {
-      border: 0;
-      border-radius: 9px;
-      padding: 14px 20px;
-      margin: 6px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-    }
+        #descargas {
+            margin-top: 24px;
+            padding-top: 18px;
+            border-top: 1px solid #dbe2ea;
+        }
 
-    .iniciar {
-      background: #f58220;
-      color: white;
-    }
-
-    .finalizar {
-      background: #dce3ec;
-      color: #17345b;
-    }
-
-    .descargar {
-      background: #073b75;
-      color: white;
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .descargas {
-      margin-top: 25px;
-      padding: 20px;
-      background: #f8fafc;
-      border: 1px solid #dce3ec;
-      border-radius: 12px;
-    }
-
-    .descargas h3 {
-      margin-top: 0;
-    }
-
-    .nota {
-      color: #63738a;
-      font-size: 13px;
-      line-height: 1.5;
-      margin-top: 22px;
-    }
-
-    [hidden] {
-      display: none !important;
-    }
-
-    @media (max-width: 480px) {
-      main {
-        margin: 15px auto;
-        padding: 12px;
-      }
-
-      .panel {
-        padding: 20px 14px;
-      }
-
-      button {
-        width: 100%;
-        margin: 6px 0;
-      }
-    }
-  </style>
+        #descargas a {
+            display: block;
+            margin: 12px 0;
+            color: #0759a5;
+        }
+    </style>
 </head>
-
 <body>
-  <header>
-    <h1>🎧 Simulador Pandero ATC</h1>
-    <p>Entrenamiento de atención al cliente por voz</p>
-  </header>
+    <main class="contenedor">
+        <h1>Simulador de Atención Pandero</h1>
 
-  <main>
-    <section class="panel">
-      <div class="icono">📞</div>
-
-      <h2>Práctica de llamada</h2>
-
-      <p>
-        Atiende al cliente como si estuvieras
-        en una llamada real de Pandero.
-      </p>
-
-      <div class="estado" id="estado">
-        Estado: listo para iniciar
-      </div>
-
-      <button class="iniciar" id="iniciar">
-        Iniciar llamada
-      </button>
-
-      <button class="finalizar" id="finalizar" disabled>
-        Finalizar llamada
-      </button>
-
-      <section class="descargas" id="descargas" hidden>
-        <h3>📁 Descargas de la llamada</h3>
-
-        <p>
-          La llamada ha finalizado. Puedes descargar
-          los archivos para revisar la práctica.
+        <p class="descripcion">
+            Inicia una llamada de práctica y conversa por voz con un cliente simulado.
         </p>
 
-        <button
-          class="descargar"
-          id="descargarAudio"
-          disabled
-        >
-          Descargar audio
-        </button>
+        <div id="estado" role="status" aria-live="polite">
+            Estado: Cargando simulador...
+        </div>
 
-        <button
-          class="descargar"
-          id="descargarTexto"
-          disabled
-        >
-          Descargar transcripción
-        </button>
-      </section>
+        <div class="botones">
+            <button id="iniciar" type="button">
+                Iniciar llamada
+            </button>
 
-      <p class="nota">
-        Simulador de entrenamiento. El audio se prepara
-        temporalmente en el navegador y no se guarda
-        permanentemente en Render. La grabación puede
-        contener la voz del asesor y la del cliente simulado.
-      </p>
-    </section>
-  </main>
+            <button id="finalizar" type="button" disabled>
+                Finalizar llamada
+            </button>
+        </div>
 
-  <script src="/frontend/main.js"></script>
+        <section id="descargas" hidden>
+            <h2>Descargas de la llamada</h2>
+            <a id="descargarAudio" href="#" download="llamada-pandero.webm" style="display:none">
+                Descargar audio de la llamada
+            </a>
+            <a id="descargarTexto" href="#" download="transcripcion-pandero.txt" style="display:none">
+                Descargar transcripción
+            </a>
+        </section>
+    </main>
+
+    <script src="/frontend/main.js" defer></script>
 </body>
 </html>
