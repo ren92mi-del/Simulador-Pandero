@@ -411,7 +411,7 @@ function detenerLlamada(mensaje = "Llamada finalizada.") {
 
     limpiarAudio();
 
-    botonIniciar.disabled = false;
+    botonIniciar.disabled = !baseCargada;
     botonFinalizar.disabled = true;
 
     mostrarEstado(mensaje);
