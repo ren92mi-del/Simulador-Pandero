@@ -1,5 +1,7 @@
 "use strict";
 
+console.info("Simulador Pandero main.js build 2026-10-09");
+
 const botonIniciar = document.getElementById("iniciar");
 const botonFinalizar = document.getElementById("finalizar");
 const estado = document.getElementById("estado");
@@ -501,9 +503,14 @@ async function iniciarLlamada() {
                 return;
             }
 
-            // El servidor actual envía texto del cliente, no texto del asesor.
+            // El servidor identifica por separado al asesor y al cliente.
             if (datos.texto) {
-                guardarTexto("Cliente", datos.texto);
+                const tipoTexto = datos.tipo === "asesor"
+                    ? "Asesor"
+                    : datos.tipo === "cliente"
+                        ? "Cliente"
+                        : "Cliente";
+                guardarTexto(tipoTexto, datos.texto);
             }
 
             if (datos.audio && contextoAudio) {
