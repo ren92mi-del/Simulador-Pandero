@@ -3,106 +3,322 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07162e">
     <title>Simulador de Atención Pandero</title>
 
     <style>
-        * {
-            box-sizing: border-box;
+        :root {
+            color-scheme: dark;
+            --fondo: #071326;
+            --panel: rgba(13, 30, 56, .88);
+            --panel-claro: #102542;
+            --azul: #2588ff;
+            --cian: #41d9e8;
+            --naranja: #ff9e43;
+            --texto: #f1f7ff;
+            --suave: #a7bad3;
+            --borde: rgba(149, 187, 230, .18);
         }
 
+        * { box-sizing: border-box; }
+
         body {
+            min-height: 100vh;
             margin: 0;
-            padding: 24px;
-            font-family: Arial, sans-serif;
-            background: #f3f6fb;
-            color: #172b4d;
+            padding: 32px 18px;
+            display: grid;
+            place-items: center;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: var(--texto);
+            background:
+                radial-gradient(ellipse at 15% 10%, rgba(37, 136, 255, .19), transparent 36%),
+                radial-gradient(ellipse at 90% 90%, rgba(65, 217, 232, .12), transparent 34%),
+                var(--fondo);
         }
 
         .contenedor {
-            max-width: 650px;
-            margin: 35px auto;
-            padding: 28px;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 5px 22px rgba(0, 0, 0, 0.08);
-            text-align: center;
+            width: min(100%, 760px);
+            position: relative;
+            overflow: hidden;
+            padding: clamp(24px, 5vw, 46px);
+            border: 1px solid var(--borde);
+            border-radius: 28px;
+            background: linear-gradient(145deg, rgba(17, 39, 70, .97), rgba(8, 22, 43, .98));
+            box-shadow: 0 28px 90px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255,255,255,.04);
+        }
+
+        .contenedor::before {
+            content: "";
+            position: absolute;
+            inset: 0 12% auto;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--cian), var(--azul), transparent);
+            opacity: .9;
+        }
+
+        .marca {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            margin-bottom: 30px;
+            color: #c8e5ff;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .19em;
+            text-transform: uppercase;
+        }
+
+        .marca-icono {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            color: var(--cian);
+            border: 1px solid rgba(65, 217, 232, .28);
+            border-radius: 11px;
+            background: rgba(65, 217, 232, .08);
         }
 
         h1 {
-            margin-top: 0;
-            color: #073b7a;
+            margin: 0;
+            color: #fff;
+            font-size: clamp(28px, 5vw, 42px);
+            line-height: 1.12;
+            letter-spacing: -.045em;
+            text-align: center;
+        }
+
+        h1 span {
+            color: var(--cian);
         }
 
         .descripcion {
-            color: #52647a;
-            line-height: 1.6;
+            max-width: 510px;
+            margin: 16px auto 28px;
+            color: var(--suave);
+            font-size: 15px;
+            line-height: 1.7;
+            text-align: center;
         }
 
+        .indicadores {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin: 0 0 20px;
+        }
+
+        .indicador {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            padding: 15px;
+            border: 1px solid var(--borde);
+            border-radius: 16px;
+            background: rgba(255,255,255,.025);
+        }
+
+        .indicador-icono {
+            width: 40px;
+            height: 40px;
+            flex: 0 0 40px;
+            display: grid;
+            place-items: center;
+            color: var(--cian);
+            border-radius: 12px;
+            background: rgba(65, 217, 232, .09);
+        }
+
+        .indicador strong, .indicador small { display: block; }
+        .indicador strong { font-size: 13px; font-weight: 750; }
+        .indicador small { margin-top: 4px; color: var(--suave); font-size: 11px; }
+
         #estado {
-            margin: 24px 0;
-            padding: 14px;
-            border-radius: 8px;
-            background: #edf4ff;
-            color: #073b7a;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin: 0 0 22px;
+            padding: 17px 18px;
+            border: 1px solid rgba(37, 136, 255, .28);
+            border-radius: 15px;
+            background: rgba(37, 136, 255, .09);
+            color: #d9ebff;
+            font-size: 14px;
+            line-height: 1.55;
             text-align: left;
             overflow-wrap: anywhere;
         }
 
+        #estado::before {
+            content: "";
+            width: 9px;
+            height: 9px;
+            flex: 0 0 9px;
+            margin-top: 5px;
+            border-radius: 50%;
+            background: var(--cian);
+            box-shadow: 0 0 13px rgba(65, 217, 232, .65);
+        }
+
         .botones {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 12px;
         }
 
         button {
-            padding: 13px 22px;
-            border: 0;
-            border-radius: 8px;
+            min-height: 54px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 18px;
+            border: 1px solid transparent;
+            border-radius: 14px;
             color: white;
-            font-size: 16px;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 800;
             cursor: pointer;
+            transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+        }
+
+        button:not(:disabled):hover {
+            transform: translateY(-2px);
+            filter: brightness(1.08);
+        }
+
+        button:focus-visible, a:focus-visible {
+            outline: 3px solid var(--cian);
+            outline-offset: 4px;
         }
 
         #iniciar {
-            background: #087443;
+            background: linear-gradient(115deg, #1475f5, #269cf7);
+            box-shadow: 0 8px 24px rgba(37, 136, 255, .23);
         }
 
         #finalizar {
-            background: #c62828;
+            border-color: rgba(255, 132, 132, .22);
+            background: linear-gradient(115deg, #b92e48, #e34c55);
+            box-shadow: 0 8px 24px rgba(227, 76, 85, .13);
         }
 
         button:disabled {
-            opacity: 0.5;
+            opacity: .42;
             cursor: not-allowed;
+            box-shadow: none !important;
         }
 
         #descargas {
-            margin-top: 24px;
-            padding-top: 18px;
-            border-top: 1px solid #dbe2ea;
-        }
-
-        #descargas a {
-            display: block;
-            margin: 12px 0;
-            color: #0759a5;
+            margin-top: 25px;
+            padding: 23px;
+            border: 1px solid rgba(65, 217, 232, .22);
+            border-radius: 18px;
+            background: rgba(65, 217, 232, .045);
+            text-align: left;
         }
 
         #descargas h2 {
-            color: #073b7a;
-            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 14px;
+            color: #effaff;
+            font-size: 17px;
+        }
+
+        #descargas a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0 0;
+            padding: 13px 15px;
+            border: 1px solid var(--borde);
+            border-radius: 12px;
+            background: rgba(255,255,255,.035);
+            color: #aeeeff;
+            font-size: 13px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: border-color .18s ease, background .18s ease;
+        }
+
+        #descargas a:hover {
+            border-color: rgba(65, 217, 232, .5);
+            background: rgba(65, 217, 232, .08);
+        }
+
+        .pie {
+            margin: 24px 0 0;
+            color: #7188a7;
+            font-size: 11px;
+            letter-spacing: .04em;
+            text-align: center;
+        }
+
+        svg { width: 20px; height: 20px; flex: 0 0 auto; }
+
+        @media (max-width: 520px) {
+            body { padding: 16px 12px; }
+            .contenedor { padding: 25px 18px; border-radius: 22px; }
+            .marca { margin-bottom: 24px; font-size: 10px; }
+            .indicadores { gap: 8px; }
+            .indicador { align-items: flex-start; gap: 8px; padding: 11px 9px; }
+            .indicador-icono { width: 32px; height: 32px; flex-basis: 32px; border-radius: 9px; }
+            .indicador-icono svg { width: 17px; height: 17px; }
+            .indicador strong { font-size: 11px; }
+            .indicador small { font-size: 10px; }
+            .botones { grid-template-columns: 1fr; }
+            #descargas { padding: 17px; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; }
         }
     </style>
 </head>
 
 <body>
     <main class="contenedor">
-        <h1>Simulador de Atención Pandero</h1>
+        <div class="marca">
+            <span class="marca-icono" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3 4.5 7v5c0 4.4 3.2 7.5 7.5 9 4.3-1.5 7.5-4.6 7.5-9V7L12 3Z"/>
+                    <path d="M8.5 12h7M12 8.5v7"/>
+                </svg>
+            </span>
+            Plataforma de entrenamiento con IA
+        </div>
+
+        <h1>Simulador de Atención <span>Pandero</span></h1>
 
         <p class="descripcion">
-            Inicia una llamada de práctica y conversa por voz con un cliente simulado.
+            Entrena conversaciones de atención al cliente en tiempo real. Practica por voz y descarga el registro de tu sesión.
         </p>
+
+        <div class="indicadores" aria-label="Funciones del simulador">
+            <div class="indicador">
+                <span class="indicador-icono" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="2.5" width="6" height="12" rx="3"/>
+                        <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5M8.5 21.5h7"/>
+                    </svg>
+                </span>
+                <span><strong>Práctica por voz</strong><small>Conversación en tiempo real</small></span>
+            </div>
+            <div class="indicador">
+                <span class="indicador-icono" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M7 3.5h7l5 5V21H7a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Z"/>
+                        <path d="M14 3.5v5h5M8.5 13h7M8.5 16.5h7"/>
+                    </svg>
+                </span>
+                <span><strong>Registro de sesión</strong><small>Audio y transcripción</small></span>
+            </div>
+        </div>
 
         <div id="estado" role="status" aria-live="polite">
             Estado: Cargando simulador...
@@ -110,37 +326,47 @@
 
         <div class="botones">
             <button id="iniciar" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4V8Z" fill="currentColor" stroke="none"/>
+                </svg>
                 Iniciar llamada
             </button>
 
             <button id="finalizar" type="button" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="5" y="5" width="14" height="14" rx="3"/>
+                </svg>
                 Finalizar llamada
             </button>
         </div>
 
         <section id="descargas" hidden>
-            <h2>Descargas de la llamada</h2>
+            <h2>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3v12m-4-4 4 4 4-4"/><path d="M5 16v4h14v-4"/>
+                </svg>
+                Descargas de la llamada
+            </h2>
 
-            <a
-                id="descargarAudio"
-                href="#"
-                download="llamada-pandero.webm"
-                style="display: none"
-            >
+            <a id="descargarAudio" href="#" download="llamada-pandero.webm" style="display: none">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3v12m-4-4 4 4 4-4"/><path d="M5 16v4h14v-4"/>
+                </svg>
                 Descargar audio de la llamada
             </a>
 
-            <a
-                id="descargarTexto"
-                href="#"
-                download="transcripcion-pandero.txt"
-                style="display: none"
-            >
+            <a id="descargarTexto" href="#" download="transcripcion-pandero.txt" style="display: none">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M7 3.5h7l5 5V21H7a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Z"/>
+                    <path d="M14 3.5v5h5M8.5 13h7M8.5 16.5h7"/>
+                </svg>
                 Descargar transcripción
             </a>
         </section>
+
+        <p class="pie">ENTORNO DE PRÁCTICA · SIMULACIÓN DE ATENCIÓN AL CLIENTE</p>
     </main>
 
-    <script src="/frontend/main.js?v=20261009-0851" defer></script>
+    <script src="/frontend/main.js?v=20261009-1030" defer></script>
 </body>
 </html>
