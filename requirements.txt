@@ -4,3 +4,7 @@ gTTS
 google-genai
 fastapi
 uvicorn[standard]
+openpyxl
+
+python-multipart
+
