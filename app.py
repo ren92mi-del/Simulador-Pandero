@@ -1,6 +1,8 @@
+
 import streamlit as st
 from streamlit_mic_recorder import speech_to_text
 from google import genai
+from google.genai import types
 from gtts import gTTS
 from io import BytesIO
 
@@ -17,6 +19,7 @@ tema = st.selectbox(
     ["Aplicación de remate"]
 )
 
+# Inicializar el estado de la aplicación
 if "historial" not in st.session_state:
     st.session_state.historial = []
 
@@ -29,109 +32,94 @@ if "turno" not in st.session_state:
 if "error_ia" not in st.session_state:
     st.session_state.error_ia = ""
 
+if "transcripcion_final" not in st.session_state:
+    st.session_state.transcripcion_final = ""
 
+
+# Crear el cliente de Gemini una sola vez
+@st.cache_resource
+def obtener_cliente():
+    return genai.Client(
+        api_key=st.secrets["GEMINI_API_KEY"],
+        http_options=types.HttpOptions(timeout=20000)
+    )
+
+
+# Guardar el audio generado para evitar repetir el trabajo
+@st.cache_data(ttl=3600)
 def generar_audio(texto):
     audio = BytesIO()
     gTTS(text=texto, lang="es").write_to_fp(audio)
-    audio.seek(0)
     return audio.getvalue()
 
 
+# Generar la respuesta del cliente
 def generar_respuesta_cliente(historial, escenario):
-    cliente = genai.Client(
-        api_key=st.secrets["GEMINI_API_KEY"]
-    )
+    cliente = obtener_cliente()
+
+    # Enviar solo los últimos mensajes para reducir el texto
+    mensajes_recientes = historial[-6:]
 
     conversacion = "\n".join(
         f"{item['rol']}: {item['mensaje']}"
-        for item in historial
+        for item in mensajes_recientes
     )
 
     instrucciones = f"""
-Eres un cliente que llama a atención al cliente
-de Pandero en Perú.
+Actúa exclusivamente como un cliente de Pandero en Perú.
 
-Escenario de práctica: {escenario}
+Escenario: {escenario}
 
-Tu papel es exclusivamente el de cliente.
-No eres asesor ni evaluador.
-
-REGLAS:
-- Habla en español peruano natural y sencillo.
-- Responde a lo que acaba de decir el asesor.
-- Mantén el contexto de toda la conversación.
-- Haz preguntas realistas y plantea dudas si corresponde.
-- Si la explicación no es clara, pide que te la aclaren.
-- No repitas siempre la misma pregunta.
-- No inventes políticas, montos ni procedimientos de Pandero.
-- No des instrucciones al asesor sobre cómo debe atender.
-- Responde brevemente, como en una llamada real.
-- Escribe únicamente lo que diría el cliente, en 1 a 3 frases.
-
-Historial de la llamada:
+Conversación reciente:
 {conversacion}
 
-Ahora genera la siguiente intervención del cliente.
+Instrucciones:
+- Habla en español peruano natural.
+- Responde a lo último que dijo el asesor.
+- Mantén el contexto de la llamada.
+- Si no entiendes, pide una aclaración.
+- Haz preguntas realistas cuando corresponda.
+- No inventes políticas, montos ni procedimientos.
+- No evalúes ni aconsejes al asesor.
+- Responde solamente como cliente.
+- Usa una o dos frases breves, máximo 35 palabras.
 """
 
-    modelos = [
-        "gemini-3.8-flash",
-        "gemini-3.7-flash",
-        "gemini-3.6-flash"
-    ]
-
-    ultimo_error = None
-
-    for modelo in modelos:
-        try:
-            resultado = cliente.models.generate_content(
-                model=modelo,
-                contents=instrucciones
-            )
-
-            if resultado.text:
-                return resultado.text.strip()
-
-            raise ValueError(
-                f"El modelo {modelo} no generó una respuesta."
-            )
-
-        except Exception as e:
-            ultimo_error = e
-            mensaje_error = str(e).upper()
-
-            if (
-                "503" not in mensaje_error
-                and "UNAVAILABLE" not in mensaje_error
-            ):
-                raise
-
-    raise RuntimeError(
-        "Los modelos de Gemini no están disponibles "
-        "en este momento. Intenta nuevamente más tarde. "
-        f"Último error: {ultimo_error}"
+    resultado = cliente.models.generate_content(
+        model="gemini-3.5-flash-lite",
+        contents=instrucciones,
+        config=types.GenerateContentConfig(
+            temperature=0.5,
+            max_output_tokens=80
+        )
     )
 
+    if not resultado.text:
+        raise ValueError("Gemini no generó una respuesta.")
 
+    return resultado.text.strip()
+
+
+# Iniciar una llamada nueva
 if st.button("Iniciar llamada"):
     st.session_state.historial = []
     st.session_state.turno = 0
     st.session_state.error_ia = ""
+    st.session_state.transcripcion_final = ""
     st.session_state.iniciado = True
-
-    saludo = (
-        "Buenas tardes. Quisiera saber cómo se aplicará "
-        "el dinero de mi remate a mis cuotas."
-    )
 
     st.session_state.historial.append({
         "rol": "Cliente",
-        "mensaje": saludo
+        "mensaje": (
+            "Buenas tardes. Quisiera saber cómo se aplicará "
+            "el dinero de mi remate a mis cuotas."
+        )
     })
 
     st.rerun()
 
 
+# Pantalla de la llamada
 if st.session_state.iniciado:
     st.subheader("📞 Llamada en curso")
 
@@ -140,6 +128,7 @@ if st.session_state.iniciado:
             f"**{item['rol']}:** {item['mensaje']}"
         )
 
+    # Reproducir la última intervención del cliente
     if (
         st.session_state.historial
         and st.session_state.historial[-1]["rol"] == "Cliente"
@@ -156,7 +145,7 @@ if st.session_state.iniciado:
         except Exception:
             st.warning(
                 "No se pudo generar el audio. "
-                "Puedes continuar con la práctica."
+                "Puedes continuar leyendo el mensaje."
             )
 
     st.divider()
@@ -177,7 +166,9 @@ if st.session_state.iniciado:
         })
 
         try:
-            with st.spinner("El cliente está respondiendo..."):
+            with st.spinner(
+                "El cliente está preparando su respuesta..."
+            ):
                 respuesta = generar_respuesta_cliente(
                     st.session_state.historial,
                     tema
@@ -187,9 +178,8 @@ if st.session_state.iniciado:
 
         except Exception as e:
             respuesta = (
-                "Disculpe, estoy teniendo un problema "
-                "de comunicación. ¿Podría intentarlo "
-                "nuevamente en un momento?"
+                "Disculpe, parece que tengo un problema "
+                "de comunicación. ¿Podría repetirlo, por favor?"
             )
 
             st.session_state.error_ia = (
@@ -205,24 +195,36 @@ if st.session_state.iniciado:
         st.rerun()
 
     if st.session_state.error_ia:
-        st.error(st.session_state.error_ia)
+        st.error(
+            "No se pudo obtener la respuesta de la IA: "
+            + st.session_state.error_ia
+        )
 
     if st.button("Finalizar llamada"):
-        transcripcion = "\n".join(
+        st.session_state.transcripcion_final = "\n".join(
             f"{item['rol']}: {item['mensaje']}"
             for item in st.session_state.historial
         )
 
         st.session_state.iniciado = False
+        st.rerun()
 
-        st.download_button(
-            "Descargar transcripción",
-            data=transcripcion,
-            file_name="practica_atc.txt",
-            mime="text/plain"
-        )
+
+# Mostrar la descarga fuera de la pantalla de llamada
+if (
+    not st.session_state.iniciado
+    and st.session_state.transcripcion_final
+):
+    st.success("Llamada finalizada.")
+
+    st.download_button(
+        "📄 Descargar transcripción",
+        data=st.session_state.transcripcion_final,
+        file_name="practica_atc.txt",
+        mime="text/plain"
+    )
 
 st.caption(
     "Prototipo educativo. Las respuestas de IA pueden contener "
-    "errores y todavía no constituyen una evaluación oficial de calidad."
+    "errores y no constituyen una evaluación oficial de calidad."
 )
