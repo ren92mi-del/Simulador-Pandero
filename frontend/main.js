@@ -1,4 +1,3 @@
-
 const botonIniciar = document.getElementById("iniciar");
 const botonFinalizar = document.getElementById("finalizar");
 const estado = document.getElementById("estado");
