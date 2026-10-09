@@ -156,15 +156,14 @@ if st.session_state.iniciado:
 
             st.session_state.error_ia = ""
 
-        except Exception:
-            respuesta = (
-                "Disculpe, parece que hubo un problema "
-                "de comunicación. ¿Podría explicármelo nuevamente?"
-            )
-            st.session_state.error_ia = (
-                "No se pudo conectar con Gemini. "
-                "Revisa la clave, el modelo y los límites de uso."
-            )
+        except Exception as e:
+    respuesta = (
+        "Disculpe, parece que hubo un problema "
+        "de comunicación. ¿Podría explicármelo nuevamente?"
+    )
+    st.session_state.error_ia = (
+        f"{type(e).__name__}: {e}"
+    )
 
         st.session_state.historial.append({
             "rol": "Cliente",
