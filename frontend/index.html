@@ -135,6 +135,60 @@
         .indicador strong { font-size: 13px; font-weight: 750; }
         .indicador small { margin-top: 4px; color: var(--suave); font-size: 11px; }
 
+        .carga-base {
+            margin: 0 0 20px;
+            padding: 19px;
+            border: 1px solid rgba(65, 217, 232, .22);
+            border-radius: 17px;
+            background: rgba(65, 217, 232, .045);
+            text-align: left;
+        }
+
+        .carga-base h2 {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin: 0 0 7px;
+            color: #effaff;
+            font-size: 16px;
+        }
+
+        .carga-base p {
+            margin: 0 0 14px;
+            color: var(--suave);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .selector-archivo {
+            display: block;
+            width: 100%;
+            margin: 0 0 11px;
+            padding: 12px;
+            border: 1px dashed rgba(149, 187, 230, .35);
+            border-radius: 12px;
+            background: rgba(255,255,255,.025);
+            color: var(--suave);
+            font: inherit;
+            font-size: 12px;
+        }
+
+        #cargarAsociados {
+            width: 100%;
+            min-height: 44px;
+            border-color: rgba(65, 217, 232, .22);
+            background: linear-gradient(115deg, #124f70, #146f86);
+            box-shadow: none;
+        }
+
+        #estadoBase {
+            margin-top: 10px;
+            color: #aeeeff;
+            font-size: 12px;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+
         #estado {
             display: flex;
             align-items: flex-start;
@@ -299,6 +353,24 @@
             Entrena conversaciones de atención al cliente en tiempo real. Practica por voz y descarga el registro de tu sesión.
         </p>
 
+        <section class="carga-base" aria-labelledby="tituloBase">
+            <h2 id="tituloBase">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 4.5h16v15H4z"/><path d="M4 9h16M9 4.5v15M14 9v10.5"/>
+                </svg>
+                Base de asociados
+            </h2>
+            <p>Sube el archivo Excel (.xlsx). Al iniciar cada llamada se asignará un asociado al azar y la IA mantendrá ese perfil durante toda la práctica.</p>
+            <input id="archivoAsociados" class="selector-archivo" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Seleccionar base de asociados Excel">
+            <button id="cargarAsociados" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 16V3m-5 5 5-5 5 5"/><path d="M4 14v6h16v-6"/>
+                </svg>
+                Cargar base Excel
+            </button>
+            <div id="estadoBase" role="status" aria-live="polite">Debes cargar una base Excel para iniciar una llamada.</div>
+        </section>
+
         <div class="indicadores" aria-label="Funciones del simulador">
             <div class="indicador">
                 <span class="indicador-icono" aria-hidden="true">
@@ -367,6 +439,6 @@
         <p class="pie">ENTORNO DE PRÁCTICA · SIMULACIÓN DE ATENCIÓN AL CLIENTE</p>
     </main>
 
-    <script src="/frontend/main.js?v=20261009-1030" defer></script>
+    <script src="/frontend/main.js?v=20261009-1200" defer></script>
 </body>
 </html>
