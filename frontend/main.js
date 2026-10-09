@@ -1,3 +1,4 @@
+"use strict";
 
 const botonIniciar = document.getElementById("iniciar");
 const botonFinalizar = document.getElementById("finalizar");
@@ -12,18 +13,24 @@ let contextoAudio = null;
 let procesador = null;
 let fuenteMicrofono = null;
 let destinoGrabacion = null;
+let gananciaSilencio = null;
 let grabadora = null;
 let partesGrabacion = [];
+
 let llamadaActiva = false;
 let iniciando = false;
 let siguienteAudio = 0;
 let transcripcion = [];
+
 let blobAudioFinal = null;
 let urlAudioAnterior = null;
 let urlTextoAnterior = null;
+let numeroIntento = 0;
 
 function mostrarEstado(mensaje) {
-    if (estado) estado.textContent = "Estado: " + mensaje;
+    if (estado) {
+        estado.textContent = "Estado: " + mensaje;
+    }
 }
 
 function guardarTexto(tipo, texto) {
@@ -31,7 +38,7 @@ function guardarTexto(tipo, texto) {
 
     transcripcion.push({
         hora: new Date().toLocaleTimeString("es-PE"),
-        tipo: tipo,
+        tipo,
         texto: texto.trim()
     });
 }
@@ -46,7 +53,10 @@ function convertirAudio(entrada, frecuencia) {
             -1,
             Math.min(1, entrada[Math.floor(i * proporcion)])
         );
-        salida[i] = valor < 0 ? valor * 32768 : valor * 32767;
+
+        salida[i] = valor < 0
+            ? valor * 32768
+            : valor * 32767;
     }
 
     return salida;
@@ -71,42 +81,85 @@ function int16Base64(datos) {
     return btoa(binario);
 }
 
+function liberarUrlAnterior(url) {
+    if (url) URL.revokeObjectURL(url);
+}
+
+function ocultarDescargas() {
+    if (panelDescargas) {
+        panelDescargas.hidden = true;
+        panelDescargas.style.display = "none";
+    }
+
+    if (enlaceAudio) enlaceAudio.style.display = "none";
+    if (enlaceTexto) enlaceTexto.style.display = "none";
+
+    liberarUrlAnterior(urlAudioAnterior);
+    liberarUrlAnterior(urlTextoAnterior);
+
+    urlAudioAnterior = null;
+    urlTextoAnterior = null;
+}
+
 function prepararGrabacion() {
-    if (!contextoAudio || !destinoGrabacion) return;
+    if (!contextoAudio || !destinoGrabacion) {
+        return false;
+    }
 
     if (!window.MediaRecorder) {
-        console.warn("El navegador no permite grabar el audio.");
-        return;
+        console.warn("Este navegador no permite grabar audio.");
+        return false;
     }
 
     try {
         const opciones = {};
+
         if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
             opciones.mimeType = "audio/webm;codecs=opus";
+        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+            opciones.mimeType = "audio/webm";
         }
 
-        grabadora = new MediaRecorder(destinoGrabacion.stream, opciones);
+        const grabadoraActual = new MediaRecorder(
+            destinoGrabacion.stream,
+            opciones
+        );
+
+        grabadora = grabadoraActual;
         partesGrabacion = [];
 
-        grabadora.ondataavailable = evento => {
+        grabadoraActual.ondataavailable = evento => {
             if (evento.data && evento.data.size > 0) {
                 partesGrabacion.push(evento.data);
             }
         };
 
-        grabadora.onstop = () => {
+        grabadoraActual.onerror = evento => {
+            console.error("Error durante la grabación:", evento);
+        };
+
+        grabadoraActual.onstop = () => {
             if (partesGrabacion.length > 0) {
-                const tipo = grabadora?.mimeType || "audio/webm";
-                blobAudioFinal = new Blob(partesGrabacion, { type: tipo });
+                const tipo = grabadoraActual.mimeType || "audio/webm";
+
+                blobAudioFinal = new Blob(partesGrabacion, {
+                    type: tipo
+                });
             }
+
+            if (grabadora === grabadoraActual) {
+                grabadora = null;
+            }
+
             mostrarDescargas();
         };
 
-        grabadora.start(1000);
+        grabadoraActual.start(1000);
+        return true;
     } catch (error) {
         console.error("No se pudo iniciar la grabación:", error);
         grabadora = null;
-        // La grabación no debe impedir que la llamada funcione.
+        return false;
     }
 }
 
@@ -137,6 +190,7 @@ function reproducirAudio(base64) {
             muestras.length,
             24000
         );
+
         const canal = buffer.getChannelData(0);
 
         for (let i = 0; i < muestras.length; i++) {
@@ -146,13 +200,19 @@ function reproducirAudio(base64) {
         const fuente = contextoAudio.createBufferSource();
         fuente.buffer = buffer;
 
-        // Se escucha al cliente y se incorpora su voz a la grabación.
+        // Reproduce la voz del cliente por los parlantes.
         fuente.connect(contextoAudio.destination);
+
+        // Incorpora también la voz del cliente a la grabación.
         if (destinoGrabacion) {
             fuente.connect(destinoGrabacion);
         }
 
-        const inicio = Math.max(contextoAudio.currentTime, siguienteAudio);
+        const inicio = Math.max(
+            contextoAudio.currentTime,
+            siguienteAudio
+        );
+
         fuente.start(inicio);
         siguienteAudio = inicio + buffer.duration;
     } catch (error) {
@@ -162,16 +222,16 @@ function reproducirAudio(base64) {
 
 function mostrarDescargas() {
     if (enlaceAudio && blobAudioFinal && blobAudioFinal.size > 0) {
-        if (urlAudioAnterior) URL.revokeObjectURL(urlAudioAnterior);
+        liberarUrlAnterior(urlAudioAnterior);
 
         urlAudioAnterior = URL.createObjectURL(blobAudioFinal);
         enlaceAudio.href = urlAudioAnterior;
         enlaceAudio.download = "llamada-pandero.webm";
-        enlaceAudio.style.display = "";
+        enlaceAudio.style.display = "block";
     }
 
     if (enlaceTexto && transcripcion.length > 0) {
-        if (urlTextoAnterior) URL.revokeObjectURL(urlTextoAnterior);
+        liberarUrlAnterior(urlTextoAnterior);
 
         const contenido = transcripcion.map(item =>
             `[${item.hora}] ${item.tipo}: ${item.texto}`
@@ -185,26 +245,122 @@ function mostrarDescargas() {
         urlTextoAnterior = URL.createObjectURL(archivo);
         enlaceTexto.href = urlTextoAnterior;
         enlaceTexto.download = "transcripcion-pandero.txt";
-        enlaceTexto.style.display = "";
+        enlaceTexto.style.display = "block";
     }
 
     if (panelDescargas) {
         panelDescargas.hidden = false;
-        panelDescargas.style.display = "";
+        panelDescargas.style.display = "block";
     }
+}
+
+function limpiarAudio() {
+    if (procesador) {
+        procesador.onaudioprocess = null;
+        try {
+            procesador.disconnect();
+        } catch {}
+        procesador = null;
+    }
+
+    if (fuenteMicrofono) {
+        try {
+            fuenteMicrofono.disconnect();
+        } catch {}
+        fuenteMicrofono = null;
+    }
+
+    if (gananciaSilencio) {
+        try {
+            gananciaSilencio.disconnect();
+        } catch {}
+        gananciaSilencio = null;
+    }
+
+    if (microfono) {
+        microfono.getTracks().forEach(pista => pista.stop());
+        microfono = null;
+    }
+
+    if (contextoAudio) {
+        const contextoAnterior = contextoAudio;
+        contextoAudio = null;
+
+        contextoAnterior.close().catch(error => {
+            console.warn("No se pudo cerrar el audio:", error);
+        });
+    }
+
+    destinoGrabacion = null;
+    siguienteAudio = 0;
+}
+
+function detenerLlamada(mensaje = "Llamada finalizada.") {
+    numeroIntento++;
+    llamadaActiva = false;
+    iniciando = false;
+
+    const socket = conexion;
+    conexion = null;
+
+    if (socket) {
+        socket.onclose = null;
+        socket.onerror = null;
+        socket.onmessage = null;
+        socket.onopen = null;
+
+        if (socket.readyState === WebSocket.OPEN) {
+            try {
+                socket.send(JSON.stringify({ tipo: "finalizar" }));
+            } catch (error) {
+                console.warn("No se pudo enviar el cierre:", error);
+            }
+        }
+
+        if (
+            socket.readyState === WebSocket.OPEN ||
+            socket.readyState === WebSocket.CONNECTING
+        ) {
+            try {
+                socket.close();
+            } catch (error) {
+                console.warn("No se pudo cerrar la conexión:", error);
+            }
+        }
+    }
+
+    const grabadoraActual = grabadora;
+
+    if (grabadoraActual && grabadoraActual.state !== "inactive") {
+        try {
+            grabadoraActual.stop();
+        } catch (error) {
+            console.warn("No se pudo detener la grabación:", error);
+            mostrarDescargas();
+        }
+    } else {
+        grabadora = null;
+        mostrarDescargas();
+    }
+
+    limpiarAudio();
+
+    botonIniciar.disabled = false;
+    botonFinalizar.disabled = true;
+
+    mostrarEstado(mensaje);
 }
 
 async function iniciarLlamada() {
     if (llamadaActiva || iniciando) return;
 
     iniciando = true;
+    const intento = ++numeroIntento;
+
     botonIniciar.disabled = true;
     botonFinalizar.disabled = true;
 
-    if (panelDescargas) {
-        panelDescargas.hidden = true;
-        panelDescargas.style.display = "none";
-    }
+    ocultarDescargas();
 
     transcripcion = [];
     partesGrabacion = [];
@@ -216,7 +372,7 @@ async function iniciarLlamada() {
     try {
         if (!navigator.mediaDevices?.getUserMedia) {
             throw new Error(
-                "El navegador no permite usar el micrófono. Abre el simulador con HTTPS."
+                "No se puede acceder al micrófono. Abre el simulador mediante HTTPS."
             );
         }
 
@@ -224,8 +380,19 @@ async function iniciarLlamada() {
             audio: true
         });
 
+        if (intento !== numeroIntento) {
+            microfono.getTracks().forEach(pista => pista.stop());
+            microfono = null;
+            return;
+        }
+
         contextoAudio = new AudioContext();
         await contextoAudio.resume();
+
+        if (intento !== numeroIntento) {
+            limpiarAudio();
+            return;
+        }
 
         destinoGrabacion = contextoAudio.createMediaStreamDestination();
 
@@ -239,28 +406,41 @@ async function iniciarLlamada() {
         conexion = nuevaConexion;
 
         nuevaConexion.onopen = () => {
-            if (conexion !== nuevaConexion) return;
+            if (conexion !== nuevaConexion || intento !== numeroIntento) {
+                nuevaConexion.close();
+                return;
+            }
 
             try {
                 fuenteMicrofono =
                     contextoAudio.createMediaStreamSource(microfono);
 
-                // La voz del asesor entra a la grabación.
+                // Graba la voz del asesor, pero no la reproduce por los parlantes.
                 fuenteMicrofono.connect(destinoGrabacion);
 
                 procesador = contextoAudio.createScriptProcessor(
-                    4096, 1, 1
+                    4096,
+                    1,
+                    1
                 );
+
+                // Evita escuchar la propia voz por los parlantes.
+                gananciaSilencio = contextoAudio.createGain();
+                gananciaSilencio.gain.value = 0;
 
                 procesador.onaudioprocess = evento => {
                     if (
                         !llamadaActiva ||
                         !conexion ||
-                        conexion.readyState !== WebSocket.OPEN
-                    ) return;
+                        conexion.readyState !== WebSocket.OPEN ||
+                        !contextoAudio
+                    ) {
+                        return;
+                    }
 
                     const entrada =
                         evento.inputBuffer.getChannelData(0);
+
                     const muestras = convertirAudio(
                         entrada,
                         contextoAudio.sampleRate
@@ -276,27 +456,37 @@ async function iniciarLlamada() {
                 };
 
                 fuenteMicrofono.connect(procesador);
-                procesador.connect(contextoAudio.destination);
+                procesador.connect(gananciaSilencio);
+                gananciaSilencio.connect(contextoAudio.destination);
 
-                // Si falla la grabación, la llamada puede continuar.
+                // La grabación no debe impedir el inicio de la llamada.
                 prepararGrabacion();
 
                 llamadaActiva = true;
                 iniciando = false;
+
                 botonFinalizar.disabled = false;
 
                 mostrarEstado("Llamada en curso. Habla con el cliente.");
                 guardarTexto("Sistema", "Llamada iniciada.");
             } catch (error) {
-                console.error("Error al preparar la llamada:", error);
-                detenerLlamada("No se pudo preparar la llamada: " + error.message);
+                console.error("Error preparando la llamada:", error);
+                detenerLlamada(
+                    "No se pudo preparar la llamada: " + error.message
+                );
             }
         };
 
         nuevaConexion.onmessage = async evento => {
-            if (conexion !== nuevaConexion) return;
+            if (
+                conexion !== nuevaConexion ||
+                intento !== numeroIntento
+            ) {
+                return;
+            }
 
             let datos;
+
             try {
                 datos = JSON.parse(evento.data);
             } catch {
@@ -311,107 +501,61 @@ async function iniciarLlamada() {
                 return;
             }
 
+            // El servidor actual envía texto del cliente, no texto del asesor.
             if (datos.texto) {
-                const tipo = datos.tipo === "asesor" ? "Asesor" : "Cliente";
-                guardarTexto(tipo, datos.texto);
+                guardarTexto("Cliente", datos.texto);
             }
 
             if (datos.audio && contextoAudio) {
                 if (contextoAudio.state === "suspended") {
                     await contextoAudio.resume();
                 }
-                reproducirAudio(datos.audio);
+
+                if (conexion === nuevaConexion && llamadaActiva) {
+                    reproducirAudio(datos.audio);
+                }
             }
         };
 
         nuevaConexion.onerror = () => {
             if (conexion !== nuevaConexion) return;
-            mostrarEstado("Error de conexión con el servidor.");
+
+            mostrarEstado(
+                "Error de conexión con el servidor. Revisa Render."
+            );
         };
 
         nuevaConexion.onclose = () => {
             if (conexion !== nuevaConexion) return;
-            detenerLlamada("Conexión cerrada. Puedes volver a intentarlo.");
+
+            detenerLlamada(
+                "Conexión cerrada. Puedes volver a intentarlo."
+            );
         };
     } catch (error) {
+        if (intento !== numeroIntento) return;
+
         console.error("Error al iniciar la llamada:", error);
+
         detenerLlamada("No se pudo iniciar: " + error.message);
     }
 }
 
-function detenerLlamada(mensaje = "Llamada finalizada.") {
-    llamadaActiva = false;
-    iniciando = false;
-
-    if (procesador) {
-        procesador.onaudioprocess = null;
-        try { procesador.disconnect(); } catch {}
-        procesador = null;
-    }
-
-    if (fuenteMicrofono) {
-        try { fuenteMicrofono.disconnect(); } catch {}
-        fuenteMicrofono = null;
-    }
-
-    if (microfono) {
-        microfono.getTracks().forEach(pista => pista.stop());
-        microfono = null;
-    }
-
-    const socket = conexion;
-    conexion = null;
-
-    if (socket) {
-        socket.onclose = null;
-        socket.onerror = null;
-        socket.onmessage = null;
-
-        if (socket.readyState === WebSocket.OPEN) {
-            try {
-                socket.send(JSON.stringify({ tipo: "finalizar" }));
-            } catch (error) {
-                console.warn("No se pudo enviar el cierre:", error);
-            }
-        }
-
-        if (
-            socket.readyState === WebSocket.OPEN ||
-            socket.readyState === WebSocket.CONNECTING
-        ) {
-            socket.close();
-        }
-    }
-
-    if (grabadora && grabadora.state !== "inactive") {
-        grabadora.stop();
-    } else {
-        mostrarDescargas();
-    }
-
-    grabadora = null;
-
-    if (contextoAudio) {
-        const audioAnterior = contextoAudio;
-        contextoAudio = null;
-        audioAnterior.close().catch(error =>
-            console.warn("No se pudo cerrar el audio:", error)
-        );
-    }
-
-    destinoGrabacion = null;
-    siguienteAudio = 0;
-
-    botonIniciar.disabled = false;
-    botonFinalizar.disabled = true;
-    mostrarEstado(mensaje);
-}
-
 function configurarSimulador() {
-    if (!botonIniciar || !botonFinalizar || !estado) {
+    if (
+        !botonIniciar ||
+        !botonFinalizar ||
+        !estado
+    ) {
         console.error(
-            "No se encontraron los elementos iniciar, finalizar o estado. Revisa frontend/index.html."
+            "Faltan elementos HTML. Revisa los identificadores iniciar, finalizar y estado."
         );
+
+        if (estado) {
+            estado.textContent =
+                "Error: no se encontraron los elementos del simulador.";
+        }
+
         return;
     }
 
@@ -419,6 +563,7 @@ function configurarSimulador() {
     botonFinalizar.disabled = true;
 
     botonIniciar.addEventListener("click", iniciarLlamada);
+
     botonFinalizar.addEventListener("click", () => {
         detenerLlamada("Llamada finalizada.");
     });
@@ -427,7 +572,11 @@ function configurarSimulador() {
 }
 
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", configurarSimulador);
+    document.addEventListener(
+        "DOMContentLoaded",
+        configurarSimulador,
+        { once: true }
+    );
 } else {
     configurarSimulador();
 }
