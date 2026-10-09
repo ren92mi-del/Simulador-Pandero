@@ -163,7 +163,7 @@ if st.session_state.iniciado:
     )
     st.session_state.error_ia = (
         f"{type(e).__name__}: {e}"
-    )
+    ) 
 
         st.session_state.historial.append({
             "rol": "Cliente",
