@@ -1,1 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador Pandero ATC</title>
 
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f2f5f9;
+      color: #17345b;
+    }
+
+    header {
+      background: #073b75;
+      color: white;
+      padding: 22px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 25px;
+    }
+
+    header p {
+      margin-bottom: 0;
+    }
+
+    main {
+      max-width: 650px;
+      margin: 35px auto;
+      padding: 25px;
+    }
+
+    .panel {
+      background: white;
+      border-radius: 16px;
+      padding: 25px;
+      box-shadow: 0 4px 18px #00000012;
+      text-align: center;
+    }
+
+    .icono {
+      font-size: 55px;
+      margin: 10px 0;
+    }
+
+    .estado {
+      background: #edf3fa;
+      padding: 13px;
+      border-radius: 10px;
+      margin: 20px 0;
+      color: #17345b;
+    }
+
+    button {
+      border: 0;
+      border-radius: 9px;
+      padding: 14px 20px;
+      margin: 6px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .iniciar {
+      background: #f58220;
+      color: white;
+    }
+
+    .finalizar {
+      background: #dce3ec;
+      color: #17345b;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .conversacion {
+      margin-top: 25px;
+      padding: 18px;
+      background: #f8fafc;
+      border-radius: 10px;
+      text-align: left;
+      min-height: 100px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .nota {
+      color: #63738a;
+      font-size: 13px;
+      line-height: 1.5;
+      margin-top: 22px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🎧 Simulador Pandero ATC</h1>
+    <p>Entrenamiento de atención al cliente por voz</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="icono">📞</div>
+
+      <h2>Práctica de llamada</h2>
+
+      <p>
+        Atiende al cliente como si estuvieras
+        en una llamada real de Pandero.
+      </p>
+
+      <div class="estado" id="estado">
+        Estado: listo para iniciar
+      </div>
+
+      <button class="iniciar" id="iniciar">
+        Iniciar llamada
+      </button>
+
+      <button class="finalizar" id="finalizar" disabled>
+        Finalizar llamada
+      </button>
+
+      <div class="conversacion" id="conversacion">
+        Aquí aparecerá la conversación entre
+        el asesor y el cliente.
+      </div>
+
+      <p class="nota">
+        Prototipo de entrenamiento. La conexión de voz
+        con la inteligencia artificial se configurará
+        en los siguientes pasos.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
