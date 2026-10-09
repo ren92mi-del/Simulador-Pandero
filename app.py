@@ -117,7 +117,9 @@ if st.session_state.iniciado:
         st.session_state.historial
         and st.session_state.historial[-1]["rol"] == "Cliente"
     ):
-        ultimo_mensaje = st.session_state.historial[-1]["mensaje"]
+        ultimo_mensaje = (
+            st.session_state.historial[-1]["mensaje"]
+        )
 
         try:
             st.audio(
@@ -157,13 +159,14 @@ if st.session_state.iniciado:
             st.session_state.error_ia = ""
 
         except Exception as e:
-    respuesta = (
-        "Disculpe, parece que hubo un problema "
-        "de comunicación. ¿Podría explicármelo nuevamente?"
-    )
-    st.session_state.error_ia = (
-        f"{type(e).__name__}: {e}"
-    ) 
+            respuesta = (
+                "Disculpe, parece que hubo un problema "
+                "de comunicación. ¿Podría explicármelo nuevamente?"
+            )
+
+            st.session_state.error_ia = (
+                f"{type(e).__name__}: {e}"
+            )
 
         st.session_state.historial.append({
             "rol": "Cliente",
