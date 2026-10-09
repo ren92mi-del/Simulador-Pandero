@@ -1,4 +1,3 @@
-
 import os
 import json
 import base64
@@ -63,6 +62,8 @@ async def llamada(websocket: WebSocket):
             config={
                 "response_modalities": ["AUDIO"],
                 "system_instruction": instrucciones,
+                "input_audio_transcription": {},
+                "output_audio_transcription": {},
             }
         ) as sesion:
 
@@ -72,6 +73,15 @@ async def llamada(websocket: WebSocket):
                     datos = json.loads(mensaje)
 
                     if datos.get("tipo") == "finalizar":
+                        try:
+                            await sesion.send_realtime_input(
+                                audio_stream_end=True
+                            )
+                        except Exception as error:
+                            print(
+                                "Aviso al finalizar audio:",
+                                type(error).__name__
+                            )
                         return
 
                     audio_base64 = datos.get("audio")
@@ -88,8 +98,8 @@ async def llamada(websocket: WebSocket):
 
             async def enviar_respuestas():
                 while True:
-                    # Recibe mensajes continuamente, incluso
-                    # después de terminar cada respuesta de Gemini.
+                    # Se mantiene la recepción continua que ya
+                    # funciona en el simulador.
                     respuesta = await sesion._receive()
 
                     if respuesta is None:
@@ -101,6 +111,23 @@ async def llamada(websocket: WebSocket):
                     if not contenido:
                         continue
 
+                    # Transcripción de lo que dice el asesor.
+                    transcripcion_entrada = getattr(
+                        contenido,
+                        "input_transcription",
+                        None
+                    )
+
+                    if (
+                        transcripcion_entrada
+                        and transcripcion_entrada.text
+                    ):
+                        await websocket.send_json({
+                            "tipo": "asesor",
+                            "texto": transcripcion_entrada.text
+                        })
+
+                    # Audio del cliente simulado.
                     if contenido.model_turn:
                         for parte in contenido.model_turn.parts:
                             if parte.inline_data:
@@ -115,21 +142,28 @@ async def llamada(websocket: WebSocket):
                                     ).decode("utf-8")
                                 })
 
-                            if parte.text:
-                                await websocket.send_json({
-                                    "texto": parte.text
-                                })
+                    # Transcripción de lo que dice el cliente simulado.
+                    transcripcion_salida = getattr(
+                        contenido,
+                        "output_transcription",
+                        None
+                    )
 
-                    transcripcion = contenido.output_transcription
-
-                    if transcripcion and transcripcion.text:
+                    if (
+                        transcripcion_salida
+                        and transcripcion_salida.text
+                    ):
                         await websocket.send_json({
-                            "texto": transcripcion.text
+                            "tipo": "cliente",
+                            "texto": transcripcion_salida.text
                         })
 
+            tarea_recibir = asyncio.create_task(recibir_audio())
+            tarea_responder = asyncio.create_task(enviar_respuestas())
+
             tareas.extend([
-                asyncio.create_task(recibir_audio()),
-                asyncio.create_task(enviar_respuestas())
+                tarea_recibir,
+                tarea_responder
             ])
 
             terminadas, pendientes = await asyncio.wait(
@@ -137,24 +171,27 @@ async def llamada(websocket: WebSocket):
                 return_when=asyncio.FIRST_COMPLETED
             )
 
-            for tarea in terminadas:
-                if tarea.cancelled():
-                    continue
+            # Si el navegador solicita finalizar, dejamos un breve
+            # margen para recibir las últimas transcripciones.
+            if tarea_recibir in terminadas:
+                if not tarea_recibir.cancelled():
+                    error = tarea_recibir.exception()
 
-                error = tarea.exception()
+                    if error is None:
+                        try:
+                            await asyncio.wait_for(
+                                asyncio.shield(tarea_responder),
+                                timeout=1.5
+                            )
+                        except asyncio.TimeoutError:
+                            pass
 
-                if error:
-                    print(
-                        "Error en tarea de llamada:",
-                        type(error).__name__,
-                        str(error)
-                    )
-
-            for tarea in pendientes:
-                tarea.cancel()
+            for tarea in tareas:
+                if not tarea.done():
+                    tarea.cancel()
 
             await asyncio.gather(
-                *pendientes,
+                *tareas,
                 return_exceptions=True
             )
 
