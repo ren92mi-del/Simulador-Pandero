@@ -1,164 +1,174 @@
 
-import os
-import json
-import base64
-import asyncio
+const botonIniciar = document.getElementById("iniciar");
+const botonFinalizar = document.getElementById("finalizar");
+const estado = document.getElementById("estado");
+const conversacion = document.getElementById("conversacion");
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from google import genai
-from google.genai import types
+let conexion = null;
+let microfono = null;
+let contextoAudio = null;
+let procesador = null;
+let fuenteMicrofono = null;
+let siguienteAudio = 0;
+let llamadaActiva = false;
 
-app = FastAPI()
+function mostrarEstado(mensaje) {
+  estado.textContent = "Estado: " + mensaje;
+}
 
-app.mount(
-    "/frontend",
-    StaticFiles(directory="frontend"),
-    name="frontend"
-)
+function agregarTexto(texto) {
+  if (conversacion.textContent.includes("Aquí aparecerá")) {
+    conversacion.textContent = "";
+  }
+  conversacion.textContent += texto + "\n\n";
+}
 
+function int16Base64(datos) {
+  const bytes = new Uint8Array(datos.buffer, datos.byteOffset, datos.byteLength);
+  let binario = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binario += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binario);
+}
 
-@app.get("/")
-async def inicio():
-    return FileResponse("frontend/index.html")
+function convertirAudio(entrada, frecuencia) {
+  const proporcion = frecuencia / 16000;
+  const salida = new Int16Array(Math.floor(entrada.length / proporcion));
 
+  for (let i = 0; i < salida.length; i++) {
+    const valor = Math.max(-1, Math.min(1, entrada[Math.floor(i * proporcion)]));
+    salida[i] = valor < 0 ? valor * 32768 : valor * 32767;
+  }
 
-@app.websocket("/ws")
-async def llamada(websocket: WebSocket):
-    await websocket.accept()
+  return salida;
+}
 
-    api_key = os.getenv("GEMINI_API_KEY")
+function reproducirAudio(base64) {
+  const binario = atob(base64);
+  const bytes = new Uint8Array(binario.length);
+  for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
 
-    if not api_key:
-        await websocket.send_json({
-            "error": "Falta configurar la clave de Gemini en el servidor."
-        })
-        await websocket.close()
-        return
+  const muestras = new Int16Array(bytes.buffer);
+  const buffer = contextoAudio.createBuffer(1, muestras.length, 24000);
+  const canal = buffer.getChannelData(0);
 
-    cliente = genai.Client(api_key=api_key)
+  for (let i = 0; i < muestras.length; i++) canal[i] = muestras[i] / 32768;
 
-    instrucciones = """
-    Actúa como un cliente de Pandero en Perú durante una llamada
-    de atención al cliente.
+  const fuente = contextoAudio.createBufferSource();
+  fuente.buffer = buffer;
+  fuente.connect(contextoAudio.destination);
 
-    Habla en español peruano natural y responde exclusivamente
-    como cliente. El asesor inicia la conversación y tú respondes
-    a lo que diga. Mantén una conversación continua y realista.
-    Haz preguntas cuando corresponda y conserva el contexto.
-    No inventes montos, políticas ni procedimientos de Pandero.
-    No evalúes al asesor ni salgas del papel de cliente.
-    Responde de manera breve y natural, como en una llamada real.
-    """
+  const inicio = Math.max(contextoAudio.currentTime, siguienteAudio);
+  fuente.start(inicio);
+  siguienteAudio = inicio + buffer.duration;
+}
 
-    configuracion = {
-        "response_modalities": ["AUDIO"],
-        "system_instruction": instrucciones,
+async function iniciarLlamada() {
+  try {
+    botonIniciar.disabled = true;
+    mostrarEstado("Conectando y solicitando micrófono...");
+
+    microfono = await navigator.mediaDevices.getUserMedia({ audio: true });
+    contextoAudio = new AudioContext();
+    await contextoAudio.resume();
+
+    const protocolo = location.protocol === "https:" ? "wss:" : "ws:";
+    conexion = new WebSocket(`${protocolo}//${location.host}/ws`);
+
+    conexion.onopen = () => {
+      llamadaActiva = true;
+      mostrarEstado("Llamada en curso. Habla con el cliente.");
+      botonFinalizar.disabled = false;
+
+      fuenteMicrofono = contextoAudio.createMediaStreamSource(microfono);
+      procesador = contextoAudio.createScriptProcessor(4096, 1, 1);
+
+      procesador.onaudioprocess = (evento) => {
+        if (!llamadaActiva || !conexion || conexion.readyState !== WebSocket.OPEN) return;
+
+        const entrada = evento.inputBuffer.getChannelData(0);
+        const muestras = convertirAudio(entrada, contextoAudio.sampleRate);
+
+        conexion.send(JSON.stringify({ audio: int16Base64(muestras) }));
+      };
+
+      fuenteMicrofono.connect(procesador);
+      procesador.connect(contextoAudio.destination);
+      agregarTexto("Sistema: llamada iniciada. Saluda al cliente.");
+    };
+
+    conexion.onmessage = async (evento) => {
+      const datos = JSON.parse(evento.data);
+
+      if (datos.error) {
+        mostrarEstado("Error: " + datos.error);
+        agregarTexto("Error: " + datos.error);
+        return;
+      }
+
+      if (datos.texto) agregarTexto("Cliente: " + datos.texto);
+
+      if (datos.audio && contextoAudio) {
+        if (contextoAudio.state === "suspended") await contextoAudio.resume();
+        reproducirAudio(datos.audio);
+      }
+    };
+
+    conexion.onerror = () => mostrarEstado("Error de conexión. Revisa el servidor.");
+    conexion.onclose = () => {
+      if (llamadaActiva) detenerLlamada();
+      mostrarEstado("Conexión cerrada.");
+    };
+  } catch (error) {
+    mostrarEstado("No se pudo iniciar: " + error.message);
+    detenerLlamada();
+  }
+}
+
+function detenerLlamada() {
+  llamadaActiva = false;
+
+  if (procesador) {
+    procesador.disconnect();
+    procesador.onaudioprocess = null;
+    procesador = null;
+  }
+
+  if (fuenteMicrofono) {
+    fuenteMicrofono.disconnect();
+    fuenteMicrofono = null;
+  }
+
+  if (microfono) {
+    microfono.getTracks().forEach(pista => pista.stop());
+    microfono = null;
+  }
+
+  if (conexion) {
+    const socket = conexion;
+    conexion = null;
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ tipo: "finalizar" }));
+      socket.close();
     }
+  }
 
-    tareas = []
+  if (contextoAudio) {
+    contextoAudio.close();
+    contextoAudio = null;
+  }
 
-    try:
-        async with cliente.aio.live.connect(
-            model="gemini-3.8-live",
-            config=configuracion
-        ) as sesion:
+  botonIniciar.disabled = false;
+  botonFinalizar.disabled = true;
+}
 
-            async def recibir_del_navegador():
-                while True:
-                    mensaje = await websocket.receive_text()
-                    datos = json.loads(mensaje)
-
-                    if datos.get("tipo") == "finalizar":
-                        return
-
-                    if datos.get("audio"):
-                        audio = base64.b64decode(datos["audio"])
-
-                        await sesion.send_realtime_input(
-                            audio=types.Blob(
-                                data=audio,
-                                mime_type="audio/pcm;rate=16000"
-                            )
-                        )
-
-            async def enviar_al_navegador():
-                # IMPORTANTE:
-                # Gemini puede terminar un ciclo de recepción
-                # después de cada respuesta. Volvemos a escuchar
-                # para permitir los siguientes turnos.
-                while True:
-                    async for respuesta in sesion.receive():
-                        contenido = respuesta.server_content
-
-                        if not contenido:
-                            continue
-
-                        if contenido.model_turn:
-                            for parte in contenido.model_turn.parts:
-                                if parte.inline_data:
-                                    audio = parte.inline_data.data
-
-                                    await websocket.send_json({
-                                        "audio": base64.b64encode(
-                                            audio
-                                        ).decode("utf-8"),
-                                        "mime_type": "audio/pcm;rate=24000"
-                                    })
-
-                                if parte.text:
-                                    await websocket.send_json({
-                                        "texto": parte.text
-                                    })
-
-                        if contenido.output_transcription:
-                            texto = contenido.output_transcription.text
-
-                            if texto:
-                                await websocket.send_json({
-                                    "texto": texto
-                                })
-
-            tareas = [
-                asyncio.create_task(recibir_del_navegador()),
-                asyncio.create_task(enviar_al_navegador())
-            ]
-
-            terminadas, pendientes = await asyncio.wait(
-                tareas,
-                return_when=asyncio.FIRST_COMPLETED
-            )
-
-            for tarea in terminadas:
-                if not tarea.cancelled():
-                    error = tarea.exception()
-                    if error:
-                        print(f"Error en la llamada: {error}")
-
-            for tarea in pendientes:
-                tarea.cancel()
-
-            await asyncio.gather(
-                *pendientes,
-                return_exceptions=True
-            )
-
-    except WebSocketDisconnect:
-        pass
-
-    except Exception as error:
-        print(f"Error en la llamada: {type(error).__name__}: {error}")
-
-    finally:
-        for tarea in tareas:
-            if not tarea.done():
-                tarea.cancel()
-
-        if tareas:
-            await asyncio.gather(*tareas, return_exceptions=True)
-
-        try:
-            await websocket.close()
-        except Exception:
-            pass
+if (botonIniciar && botonFinalizar && estado && conversacion) {
+  botonIniciar.addEventListener("click", iniciarLlamada);
+  botonFinalizar.addEventListener("click", () => {
+    detenerLlamada();
+    mostrarEstado("Llamada finalizada.");
+  });
+} else {
+  console.error("No se encontraron los elementos de la interfaz del simulador.");
+}
