@@ -1,6 +1,6 @@
 "use strict";
 
-console.info("Simulador Pandero main.js build 2026-10-09 Excel profiles");
+console.info("Simulador Pandero main.js build 2026-10-10 manual PDF, scenarios and evaluation");
 
 const botonIniciar = document.getElementById("iniciar");
 const botonFinalizar = document.getElementById("finalizar");
@@ -592,7 +592,7 @@ function detenerLlamada(mensaje = "Llamada finalizada.") {
 
     limpiarAudio();
 
-    botonIniciar.disabled = !baseCargada;
+    actualizarDisponibilidad();
     botonFinalizar.disabled = true;
 
     mostrarEstado(mensaje);
