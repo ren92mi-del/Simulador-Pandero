@@ -394,6 +394,24 @@
             <div id="estadoBase" role="status" aria-live="polite">Debes cargar una base Excel para iniciar una llamada.</div>
         </section>
 
+        <section class="carga-base" aria-labelledby="tituloManual">
+            <h2 id="tituloManual">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M6 2.8h8l4.5 4.5v13.9H6z"/><path d="M14 2.8v5h4.5M8.5 13h7M8.5 16h7"/>
+                </svg>
+                Manual de procedimientos
+            </h2>
+            <p>Sube el PDF de Pandero para que la IA consulte los procedimientos relacionados con cada escenario. El documento se procesa en memoria y no se guarda en el repositorio.</p>
+            <input id="archivoManual" class="selector-archivo" type="file" accept=".pdf,application/pdf" aria-label="Seleccionar manual de procedimientos en PDF">
+            <button id="cargarManual" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 16V3m-5 5 5-5 5 5"/><path d="M4 14v6h16v-6"/>
+                </svg>
+                Cargar manual PDF
+            </button>
+            <div id="estadoManual" role="status" aria-live="polite">Debes cargar el manual PDF para usar todos los procedimientos.</div>
+        </section>
+
         <section class="opciones-simulacion" aria-label="Configuración del escenario">
             <div>
                 <label for="modoEscenario">Selección del caso</label>
@@ -484,6 +502,6 @@
         <p class="pie">ENTORNO DE PRÁCTICA · SIMULACIÓN DE ATENCIÓN AL CLIENTE</p>
     </main>
 
-    <script src="/frontend/main.js?v=20261010-0900" defer></script>
+    <script src="/frontend/main.js?v=20261010-1030" defer></script>
 </body>
 </html>
