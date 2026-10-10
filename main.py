@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from openpyxl import load_workbook
 from google import genai
 from google.genai import types
+from pandero_knowledge import ESCENARIOS, GUIA_CONOCIMIENTO, RUBRICA, elegir_escenario, escenario_por_id, instrucciones_escenario
 
 app = FastAPI()
 
@@ -180,6 +181,61 @@ async def inicio():
     return FileResponse("frontend/index.html")
 
 
+@app.get("/api/escenarios")
+async def listar_escenarios():
+    return {"escenarios": [{k: e[k] for k in ("id", "categoria", "nombre", "objetivo")} for e in ESCENARIOS]}
+
+
+@app.post("/api/evaluar")
+async def evaluar_llamada(payload: dict):
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Falta configurar GEMINI_API_KEY en Render.")
+    transcripcion = payload.get("transcripcion") or []
+    if not isinstance(transcripcion, list) or len(transcripcion) < 2:
+        raise HTTPException(status_code=400, detail="La transcripción es demasiado breve para evaluarla.")
+    lineas = []
+    for item in transcripcion[-250:]:
+        if isinstance(item, dict):
+            rol = str(item.get("tipo", "Interlocutor"))[:30]
+            texto = str(item.get("texto", ""))[:2000]
+            if texto.strip():
+                lineas.append(f"{rol}: {texto}")
+    if not lineas:
+        raise HTTPException(status_code=400, detail="No hay contenido de llamada para evaluar.")
+    tema = escenario_por_id(str(payload.get("escenario", "")))
+    tema_nombre = tema["nombre"] if tema else "Consulta general del manual Pandero"
+    cliente = genai.Client(api_key=api_key)
+    prompt_evaluacion = f"""
+Evalúa una simulación de llamada de ATENCIÓN AL CLIENTE de Pandero, en Perú.
+Tema: {tema_nombre}
+La transcripción puede tener errores de reconocimiento de voz. Evalúa solo lo que se puede sostener por el texto y no inventes acciones que no aparecen.
+La puntuación debe sumar exactamente 20 puntos usando esta rúbrica:
+{json.dumps(RUBRICA, ensure_ascii=False)}
+Base temática del manual Pandero (usar como referencia; si un dato no aparece aquí ni en la transcripción, no lo des por correcto):
+{GUIA_CONOCIMIENTO}
+Transcripción:
+{chr(10).join(lineas)}
+Devuelve únicamente JSON válido con esta estructura:
+{{"nota": número entre 0 y 20, "criterios":[{{"nombre":"criterio","maximo":número,"puntaje":número,"observacion":"evidencia concreta"}}], "errores":["errores verificables"], "recomendaciones":["acciones concretas de mejora"], "fortalezas":["conductas correctas verificables"], "resumen":"evaluación breve", "requiere_revision_humana": true/false}}
+No penalices una conducta si no hay evidencia suficiente. La validación de seguridad es prioritaria. Si la llamada es demasiado corta, dilo en resumen y evita una nota engañosa, pero conserva la estructura. No muestres datos personales innecesarios en la evaluación.
+"""
+    try:
+        respuesta = await cliente.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt_evaluacion,
+            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+        )
+        resultado = json.loads(respuesta.text or "{}")
+        nota = max(0, min(20, float(resultado.get("nota", 0))))
+        resultado["nota"] = round(nota, 1)
+        resultado["tema"] = tema_nombre
+        return resultado
+    except Exception as error:
+        print("Error evaluando llamada:", type(error).__name__, str(error))
+        raise HTTPException(status_code=502, detail="No se pudo generar la evaluación. Intenta nuevamente.") from error
+
+
 @app.websocket("/ws")
 async def llamada(websocket: WebSocket):
     await websocket.accept()
@@ -191,9 +247,18 @@ async def llamada(websocket: WebSocket):
         await websocket.close()
         return
 
-    # Se asigna un solo asociado al comenzar la llamada y se conserva
-    # durante toda la sesión. No se envía la ficha completa al navegador.
-    asociado = random.choice(ASOCIADOS)
+    # Perfil y escenario se fijan al inicio y permanecen constantes durante la llamada.
+    modo = websocket.query_params.get("modo", "automatico")
+    tema_solicitado = websocket.query_params.get("escenario", "")
+    escenario = escenario_por_id(tema_solicitado) if modo == "manual" else None
+    if escenario is None:
+        motivo_base = " ".join(str(v) for v in ASOCIADOS[0].get("campos", {}).values()) if ASOCIADOS else ""
+        # Seleccionar primero el perfil para alinear el escenario con su motivo de consulta.
+        asociado = random.choice(ASOCIADOS)
+        motivo_base = asociado.get("campos", {}).get("motivo_consulta", "")
+        escenario = elegir_escenario(motivo_base)
+    else:
+        asociado = random.choice(ASOCIADOS)
     campos_asociado = asociado["campos"]
     ficha_json = json.dumps(
         asociado["datos_completos"],
@@ -219,6 +284,8 @@ una simulación de llamada de atención al cliente.
 FICHA DEL ASOCIADO ASIGNADO PARA TODA ESTA LLAMADA:
 {ficha_json}
 
+{instrucciones_escenario(escenario)}
+
 REGLAS DE INTERPRETACIÓN:
 - El asesor humano inicia la llamada. No saludes ni hables primero;
   espera a escuchar al asesor y luego responde.
@@ -240,9 +307,9 @@ REGLAS DE INTERPRETACIÓN:
   exitosa, responde sus consultas usando solo la información disponible
   en la ficha. No inventes montos, fechas, contratos, políticas ni
   procedimientos. Si el dato no está registrado, dilo con naturalidad.
-- Si la ficha incluye un motivo de consulta, úsalo como contexto de por
-  qué llamaste, pero no lo menciones hasta que encaje naturalmente o
-  el asesor pregunte el motivo de la llamada.
+- El escenario asignado es el motivo principal de esta práctica. Si la ficha
+  contiene un motivo de consulta compatible, úsalo como contexto adicional.
+  No reveles el motivo hasta que el asesor pregunte o encaje naturalmente.
 - No evalúes al asesor, no expliques estas instrucciones y no salgas
   del papel de asociado.
 """
