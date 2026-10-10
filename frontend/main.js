@@ -15,8 +15,12 @@ const modoEscenario = document.getElementById("modoEscenario");
 const escenarioSeleccionado = document.getElementById("escenarioSeleccionado");
 const panelEvaluacion = document.getElementById("evaluacion");
 const contenidoEvaluacion = document.getElementById("contenidoEvaluacion");
+const archivoManual = document.getElementById("archivoManual");
+const botonCargarManual = document.getElementById("cargarManual");
+const estadoManual = document.getElementById("estadoManual");
 
 let baseCargada = false;
+let manualCargado = false;
 let conexion = null;
 let microfono = null;
 let contextoAudio = null;
@@ -59,6 +63,10 @@ function mostrarEstadoBase(mensaje) {
     if (estadoBase) estadoBase.textContent = mensaje;
 }
 
+function actualizarDisponibilidad() {
+    if (botonIniciar) botonIniciar.disabled = !(baseCargada && manualCargado) || llamadaActiva || iniciando;
+}
+
 async function consultarEstadoBase() {
     try {
         const respuesta = await fetch("/api/asociados/estado", {
@@ -67,18 +75,67 @@ async function consultarEstadoBase() {
         if (!respuesta.ok) throw new Error("No se pudo consultar el estado de la base.");
         const datos = await respuesta.json();
         baseCargada = Boolean(datos.cargada && datos.cantidad > 0);
-        botonIniciar.disabled = !baseCargada;
+        actualizarDisponibilidad();
         mostrarEstadoBase(baseCargada
             ? "Base lista: " + datos.cantidad + " asociados cargados (" + datos.archivo + "). Cada llamada usará un perfil aleatorio."
             : "Debes cargar una base Excel para iniciar una llamada.");
     } catch (error) {
         baseCargada = false;
-        botonIniciar.disabled = true;
+        actualizarDisponibilidad();
         mostrarEstadoBase("No se pudo verificar la base. Recarga la página o vuelve a cargar el Excel.");
         console.error("Error consultando la base:", error);
     }
 }
 
+
+
+async function consultarEstadoManual() {
+    try {
+        const respuesta = await fetch("/api/manual/estado", { cache: "no-store" });
+        if (!respuesta.ok) throw new Error("No se pudo consultar el estado del manual.");
+        const datos = await respuesta.json();
+        manualCargado = Boolean(datos.cargado && datos.caracteres > 0);
+        if (estadoManual) {
+            estadoManual.textContent = manualCargado
+                ? "Manual listo: " + datos.paginas + " páginas procesadas (" + datos.archivo + "). Se mantiene en memoria durante esta sesión del servidor."
+                : "Debes cargar el manual PDF para usar todos los procedimientos.";
+        }
+        actualizarDisponibilidad();
+    } catch (error) {
+        manualCargado = false;
+        if (estadoManual) estadoManual.textContent = "No se pudo verificar el manual. Vuelve a cargar el PDF.";
+        actualizarDisponibilidad();
+        console.error("Error consultando el manual:", error);
+    }
+}
+
+async function subirManualPDF() {
+    const archivo = archivoManual?.files?.[0];
+    if (!archivo) {
+        if (estadoManual) estadoManual.textContent = "Primero selecciona el manual PDF.";
+        return;
+    }
+    if (botonCargarManual) botonCargarManual.disabled = true;
+    if (estadoManual) estadoManual.textContent = "Leyendo y procesando el PDF en memoria...";
+    try {
+        const formulario = new FormData();
+        formulario.append("archivo", archivo);
+        const respuesta = await fetch("/api/manual", { method: "POST", body: formulario });
+        const datos = await respuesta.json();
+        if (!respuesta.ok) throw new Error(datos.detail || "No se pudo cargar el manual.");
+        manualCargado = true;
+        if (estadoManual) estadoManual.textContent = datos.mensaje || ("Manual listo: " + datos.paginas + " páginas.");
+        archivoManual.value = "";
+        actualizarDisponibilidad();
+    } catch (error) {
+        manualCargado = false;
+        if (estadoManual) estadoManual.textContent = "Error: " + error.message;
+        actualizarDisponibilidad();
+        console.error("Error cargando el manual PDF:", error);
+    } finally {
+        if (botonCargarManual) botonCargarManual.disabled = false;
+    }
+}
 
 async function cargarEscenarios() {
     if (!escenarioSeleccionado) return;
@@ -222,7 +279,7 @@ async function cargarBaseAsociados() {
         }
 
         baseCargada = true;
-        botonIniciar.disabled = false;
+        actualizarDisponibilidad();
         mostrarEstadoBase(datos.mensaje + " La ficha completa no se muestra en pantalla.");
         archivoAsociados.value = "";
     } catch (error) {
@@ -549,6 +606,10 @@ async function iniciarLlamada() {
         mostrarEstado("Primero carga una base de asociados en Excel (.xlsx).");
         return;
     }
+    if (!manualCargado) {
+        mostrarEstado("Primero carga el manual de procedimientos Pandero en PDF.");
+        return;
+    }
 
     iniciando = true;
     const intento = ++numeroIntento;
@@ -782,6 +843,9 @@ function configurarSimulador() {
     if (botonCargarAsociados) {
         botonCargarAsociados.addEventListener("click", cargarBaseAsociados);
     }
+    if (botonCargarManual) {
+        botonCargarManual.addEventListener("click", subirManualPDF);
+    }
     if (modoEscenario && escenarioSeleccionado) {
         modoEscenario.addEventListener("change", () => {
             escenarioSeleccionado.disabled = modoEscenario.value !== "manual";
@@ -789,6 +853,7 @@ function configurarSimulador() {
     }
     cargarEscenarios();
     consultarEstadoBase();
+    consultarEstadoManual();
 
     botonFinalizar.addEventListener("click", () => {
         detenerLlamada("Llamada finalizada.");
