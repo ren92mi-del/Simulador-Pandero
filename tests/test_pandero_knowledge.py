@@ -34,7 +34,7 @@ class PanderoKnowledgeTests(unittest.TestCase):
     def test_scenario_prompt_has_objective_and_manual_guide(self):
         prompt = instrucciones_escenario(escenario_por_id("estado_cuenta"))
         self.assertIn("Objetivo de la consulta", prompt)
-        self.assertIn("GUIA", prompt.upper())
+        self.assertIn("Guía temática", prompt)
 
 
 if __name__ == "__main__":
