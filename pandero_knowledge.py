@@ -1,0 +1,114 @@
+"""Base de conocimiento para el simulador de atención Pandero.
+
+Compilación temática del manual interno Pandero 1.pdf. No reemplaza SAF,
+las tipificaciones ni la validación de un procedimiento vigente. Si el manual
+no especifica un dato o depende de la ficha real, la IA debe reconocerlo y
+derivar al área responsable en vez de inventarlo.
+"""
+import random
+import re
+import unicodedata
+
+ESCENARIOS = [
+ {"id":"tentativa_venta","categoria":"Comercial y contratos","nombre":"Tentativa de venta y productos","keywords":["tentativa","venta","contrato nuevo","cotizar","comprar un contrato","auto nuevo","seminuevo","pandero casa"],"objetivo":"Identificar el producto de interés, explicar Pandero de forma general y derivar los datos al área comercial."},
+ {"id":"contratos_firma","categoria":"Comercial y contratos","nombre":"Contratos, firma y copia","keywords":["contrato","firmar","copia","documento firmado","programa","tarifario","punto de venta","ejecutivo de ventas"],"objetivo":"Orientar sobre tipos de contrato, firma y obtención de documentos; no inventar tarifarios ni datos de ejecutivos."},
+ {"id":"asambleas","categoria":"Asambleas y adjudicación","nombre":"Asambleas, sorteo y remate","keywords":["asamblea","sorteo","remate","adjudicación anticipada","probabilidad","transmisión","resultado"],"objetivo":"Explicar la dinámica general y las diferencias por programa sin prometer una fecha exacta de adjudicación."},
+ {"id":"estado_cuenta","categoria":"Pagos y contratos","nombre":"Estado de cuenta y conceptos de cuota","keywords":["estado de cuenta","cuota mensual","aportes","saldo","capital","administrativo","mora"],"objetivo":"Consultar estado y tipificaciones; aplicar la ruta correcta según estado contractual y motivo."},
+ {"id":"financiamiento","categoria":"Pagos y contratos","nombre":"Financiamiento y pagos anticipados","keywords":["financiamiento","pago anticipado","adelanto","amortización","cuenta de financiamiento"],"objetivo":"Orientar sobre pago parcial o total anticipado y estado de financiamiento sin calcular importes no disponibles."},
+ {"id":"movimientos_contrato","categoria":"Pagos y contratos","nombre":"Transferencia, titularidad, ampliación y fusión","keywords":["transferencia","cambio de titular","titularidad","ampliación","extensión","unión","fusión","reactivación","resolución"],"objetivo":"Identificar el movimiento solicitado y seguir el procedimiento específico sin asegurar aprobaciones."},
+ {"id":"devoluciones","categoria":"Devoluciones y retención","nombre":"Separación de vacante y devoluciones","keywords":["separación de vacante","devolución","preinaugural","postinaugural","resuelto","contrato anulado","reembolso","retención"],"objetivo":"Distinguir el tipo de devolución/estado, revisar la solicitud y respuesta en SAF y no prometer plazos que no consten."},
+ {"id":"recuperos_1_2","categoria":"Cobranzas y recuperos","nombre":"Bien entregado con 1 o 2 cuotas pendientes","keywords":["una cuota","dos cuotas","1 cuota","2 cuotas","cuotas pendientes","bien entregado","morosidad"],"objetivo":"Verificar tipificaciones y estado de cuenta; informar cuotas, meses y montos cuando estén disponibles, y la cuenta de pago aplicable."},
+ {"id":"recuperos_3_mas","categoria":"Cobranzas y recuperos","nombre":"Bien entregado con 3 o más cuotas pendientes","keywords":["tres cuotas","3 cuotas","más cuotas","recuperos","obligación de pago"],"objetivo":"Verificar tipificaciones; informar número de cuotas y meses, facilitar datos completos del ejecutivo de Recuperos y orientar sobre la cuenta aplicable."},
+ {"id":"situacion_legal","categoria":"Cobranzas y recuperos","nombre":"Situación legal, carta notarial y recuperos judiciales","keywords":["situación legal","carta notarial","judicial","extrajudicial","orden de captura","levantamiento de captura","deuda pagada"],"objetivo":"No revelar deuda cuando la regla del manual lo prohíbe; informar/derivar al ejecutivo de Recuperos o auxiliar operativo que corresponda."},
+ {"id":"retencion","categoria":"Devoluciones y retención","nombre":"Retención y disconformidad con una respuesta","keywords":["retención","no quiero continuar","disconforme","desacuerdo","respuesta negativa","caso especial"],"objetivo":"Escuchar el motivo, consultar la respuesta previa y seguir el procedimiento de retención o caso especial sin garantizar resultado."},
+ {"id":"levantamiento_prenda","categoria":"Vehículos y trámites","nombre":"Levantamiento de prenda y constancias","keywords":["levantamiento de prenda","prenda","constancia de no adeudo","cancelación","certificado"],"objetivo":"Verificar estado contractual, entrega del bien, pago total y situación legal; informar requisitos/plazos solo según manual."},
+ {"id":"adjudicacion","categoria":"Asambleas y adjudicación","nombre":"Evaluación crediticia y pasos de adjudicación","keywords":["adjudicación","evaluación crediticia","comité de crédito","aval","garantía","pedido vehicular"],"objetivo":"Explicar los pasos de evaluación, pedido, notaría, Sunarp y entrega; no asegurar fecha de entrega."},
+ {"id":"entrega_vehiculo","categoria":"Vehículos y trámites","nombre":"Documentos, notaría, Sunarp y entrega del vehículo","keywords":["entrega del vehículo","notaría","sunarp","dua","documentos","orden irrevocable","proforma"],"objetivo":"Guiar sobre fases y documentación según nuevo o seminuevo; validar requisitos vigentes con el área responsable."},
+ {"id":"seminuevos","categoria":"Vehículos y trámites","nombre":"Requisitos para adquirir un seminuevo","keywords":["seminuevo","kilometraje","lima metropolitana","callao","antigüedad","gravamen"],"objetivo":"Explicar los criterios del manual: ámbito de Lima Metropolitana/Callao, kilometraje/antigüedad y ausencia de gravámenes o daños que lo impidan."},
+ {"id":"gps","categoria":"Vehículos y trámites","nombre":"GPS, proveedores y uso","keywords":["gps","rastreo","proveedor","garantía gps"],"objetivo":"Orientar sobre el GPS y derivar a FSV/proveedor según el caso; no inventar datos de proveedores."},
+ {"id":"gnv_glp","categoria":"Vehículos y trámites","nombre":"Activación de chip GNV/GLP","keywords":["gnv","glp","chip","gas"],"objetivo":"Identificar solicitud y derivar al proveedor/área correspondiente, sin inventar fechas de activación."},
+ {"id":"talleres_mantenimiento","categoria":"Vehículos y trámites","nombre":"Talleres, mantenimiento y garantía extendida","keywords":["taller","mantenimiento","falla mecánica","garantía extendida","reparación"],"objetivo":"Distinguir mantenimiento, falla mecánica y garantía; orientar según cobertura documentada."},
+ {"id":"impuesto_vehicular","categoria":"Vehículos y trámites","nombre":"Impuesto vehicular","keywords":["impuesto vehicular","municipalidad","tributo vehicular"],"objetivo":"Explicar solo las condiciones descritas en el manual y derivar cuando falte información particular."},
+ {"id":"seguro_vehicular","categoria":"Seguros y siniestros","nombre":"Seguro vehicular, pólizas y renovación","keywords":["seguro vehicular","póliza","pacifico","qualitas","rimac","renovación","deducible","soat"],"objetivo":"Identificar aseguradora, orientar sobre SAF y renovaciones/ajustes, y no asegurar coberturas sin revisar póliza."},
+ {"id":"siniestro","categoria":"Seguros y siniestros","nombre":"Siniestro parcial, total o robo","keywords":["siniestro","choque","accidente","robo","pérdida total","perito","grúa"],"objetivo":"Indicar denuncia/constancia policial, dosaje etílico, declaración ante aseguradora y reporte máximo a las 4 horas según el manual; con lesionados, comunicarse con SOAT. Para robo, coordinar GPS y denuncia en DIPROVE según manual."},
+ {"id":"desgravamen","categoria":"Seguros y siniestros","nombre":"Seguro de desgravamen","keywords":["desgravamen","seguro de vida","persona jurídica","incapacidad"],"objetivo":"Explicar la finalidad y reglas descritas en el manual; no prometer devolución del seguro."},
+ {"id":"reclamos","categoria":"Atención y solicitudes","nombre":"Reclamos y portal de reclamos","keywords":["reclamo","libro de reclamaciones","portal","queja"],"objetivo":"Registrar/derivar por el canal de reclamos documentado y explicar el siguiente paso sin inventar plazo de respuesta."},
+ {"id":"cambio_ejecutivo","categoria":"Atención y solicitudes","nombre":"Cambio o contacto con ejecutivo/gerencia","keywords":["cambiar ejecutivo","ejecutivo asignado","reunión con gerente","gerente","fidelización","seguros","recuperos"],"objetivo":"Identificar el área correspondiente y compartir datos de contacto solo si están disponibles en el sistema."},
+ {"id":"apropiacion_dinero","categoria":"Atención y solicitudes","nombre":"Apropiación de dinero","keywords":["apropiación de dinero","dinero aplicado","pago aplicado"],"objetivo":"Verificar movimiento/tipificación y seguir el procedimiento de llamada específico."},
+ {"id":"fallecimiento_sucesion","categoria":"Atención y solicitudes","nombre":"Asociado fallecido y sucesión intestada","keywords":["fallecido","fallecimiento","sucesión","intestada","herederos"],"objetivo":"Tratar el caso con sensibilidad, indicar documentación/proceso que conste y derivar a la unidad responsable."},
+ {"id":"debito_automatico","categoria":"Canales y bienvenida","nombre":"Débito automático: afiliación, baja e incidencias","keywords":["débito automático","afiliar","desafiliar","cargo automático","cuenta bancaria"],"objetivo":"Distinguir afiliación, baja o incidencia y seguir el procedimiento específico; no afirmar que quedó activo sin confirmación."},
+ {"id":"pandero_casa","categoria":"Pandero Casa","nombre":"Pandero Casa, inmueble e hipoteca","keywords":["pandero casa","hipoteca","inmueble","pagar crédito hipotecario","construcción","propiedad"],"objetivo":"Distinguir compra de inmueble, construcción o cancelación de crédito hipotecario y explicar requisitos/documentos según manual."},
+ {"id":"bienvenida","categoria":"Canales y bienvenida","nombre":"Llamada de bienvenida","keywords":["bienvenida","nuevo asociado","reactivado","llamada de bienvenida"],"objetivo":"Confirmar datos y explicar información inicial aplicable, respetando seguridad y el procedimiento de bienvenida."},
+ {"id":"consulta_general","categoria":"Consultas generales","nombre":"Consulta general / otro procedimiento del manual","keywords":[],"objetivo":"Identificar el motivo, usar la guía del manual y consultar SAF/tipificaciones; si falta una regla concreta, no inventarla."}
+]
+
+GUIA_CONOCIMIENTO = """
+ALCANCE COMPLETO DE TEMAS DEL MANUAL (61 páginas):
+1) Tentativa de venta; contratos Auto nuevo, Auto seminuevo y Pandero Casa; puntos de venta; ejecutivos y supervisores de venta; teléfonos comerciales; tarifario; firma y copia de contrato; programas disponibles.
+2) Asambleas: duración, dinámica, visualización/transmisión, sorteo, remate, formas de aplicar remate y adjudicación anticipada. No asegurar fecha exacta de adjudicación. La guía describe diferencias por programa; validar el plan específico.
+3) Movimientos: transferencia de contrato, cambio de titularidad, ampliación/extensión, cuentas de recaudación, financiamiento, adelanto parcial/total, estado de cuenta de financiamiento, conceptos, reactivación, resolución, consecuencias, unión/fusión y levantamiento de prenda.
+4) Vehículos: impuesto vehicular, GPS y proveedores, uso de GPS, activación de chip GNV/GLP, talleres autorizados, mantenimiento, fallas mecánicas y garantía extendida.
+5) Seguros: aseguradoras, seguro propio, consulta de póliza en SAF, renovación y ajustes, desgravamen, siniestros parciales/totales, pérdida/robo.
+6) Atención: registro de reclamos y portal; cambio de ejecutivo de servicios y ventas, fidelización, recuperos y seguros; reunión con gerente; apropiación de dinero; separación de vacante; cancelación anticipada; pagos parciales; fallecimiento/sucesión intestada.
+7) Devoluciones/retención: devolución preinaugural, postinaugural, resolución de contrato, devolución de contratos adjudicados, penalidades/descuentos si documentados, estado de solicitudes, respuesta y devolución tras respuesta positiva; casos especiales y desacuerdo.
+8) Recuperos/legal: llamadas con 1–2 cuotas y con 3 o más cuotas, tipificaciones SAF, solicitudes de apoyo por mora, pagos de terceros, cartas notariales, recuperación prejudicial/judicial, entrega voluntaria, vehículo capturado, pago de deuda y liberación, levantamiento de orden de captura, compra de vehículo vendido extrajudicialmente.
+9) Adjudicación/entrega: por qué se repite evaluación crediticia, garantías GPS/aval, comité, resultado en SAF, elección del vehículo, DUA, orden irrevocable, documentos de notaría, documentos que llevar/firmar/recibir, documentos previos a programación y pasos de entrega para nuevo y seminuevo. Requisitos, formularios digitales, documentación del vendedor/vehículo, documentos Pandero, notaría y entrega.
+10) Débito automático: afiliación, desafiliación e incidencias.
+11) Pandero Casa: uso del contrato para cancelar hipoteca, compra de inmueble existente, documentación del inmueble/hipoteca, firmas, anexos y pagos frecuentes.
+12) Llamada de bienvenida.
+REGLAS ESPECÍFICAS TRANSCRITAS DEL MANUAL:
+- Tentativa de venta: identificar tipo de contrato; explicar que Pandero administra fondos colectivos y modalidades generales; derivar nombre, provincia, teléfono, correo y marca/modelo al área comercial usando el landing indicado en el manual. Clientes con otro contrato en situación legal no pueden acceder a uno nuevo.
+- Productos: auto nuevo disponible en Perú; seminuevo en Lima Metropolitana y Callao; Pandero Casa solo en las zonas urbanas enumeradas en el manual.
+- Siniestros: reportar máximo a las 4 horas; denuncia o constancia policial, dosaje etílico y declaración al llegar el agente; con lesionados comunicarse con SOAT; grúa solo si no se puede mover el vehículo. Robo: contactar GPS/proveedor o FSV y denunciar en DIPROVE. La aseguradora determina cobertura; Pandero no influye en esa decisión.
+- Recuperos con bien entregado y 1–2 cuotas pendientes: consultar siempre tipificaciones y estado de cuenta; informar número de cuotas, montos y meses pendientes; orientar a la cuenta “Pandero cuotas mensual + número de documento” y bancos BCP, BBVA, Scotiabank e Interbank. Apoyo/descuento por mora: correo al ejecutivo de Recuperos con explicación y sustentos. Tercero que desea pagar: dar datos del ejecutivo para coordinar, no negociar descuento.
+- Recuperos con bien entregado y 3+ cuotas: consultar tipificaciones/estado; informar número de cuotas y meses, no es necesario indicar montos porque no estarán disponibles en el banco; dar datos completos del ejecutivo de Recuperos para habilitar obligación; cuenta “Pandero servicios varios + número de documento”, bancos BCP, BBVA, Scotiabank e Interbank.
+- Seguro de desgravamen: el manual indica que personas jurídicas no lo contratan; se paga en cuota mensual y no se devuelve al terminar de pagar.
+- Elección de seguro para vehículo adjudicado: el manual indica cotizaciones de Pacífico, Quálitas o Rímac en 24–48 horas hábiles tras la fase de orden irrevocable; si elige seguro propio debe cumplir requisitos antes de programar entrega y coordinar con FSV.
+- Seminuevos: manual indica ámbito Lima Metropolitana/Callao, máximo 70,000 km, máximo 7 años, sin gravámenes/afectaciones y sin daños por accidente según los criterios allí descritos.
+- Levantamiento de prenda/certificados: revisar el tipo y estado de contrato, entrega del bien, pago total y estado legal; el procedimiento y los plazos/costos dependen de estas condiciones. No aplicar un plazo/costo genérico a todos los casos.
+- Estado legal: revisar SAF y tipificaciones; no revelar datos de deuda si el procedimiento de recuperos legales no lo permite. Para vehículo capturado o entrega voluntaria, seguir el procedimiento y derivar a Recuperos/Auxiliar Operativo según caso.
+- Si un dato depende de la ficha del asociado, SAF, póliza, tarifario, tipificación o ejecutivo asignado, nunca inventarlo. Explicar la limitación y realizar la derivación apropiada.
+"""
+RUBRICA = [
+ {"criterio":"Saludo e identificación","maximo":2,"regla":"Saluda profesionalmente, se identifica y mantiene trato adecuado."},
+ {"criterio":"Validación de seguridad","maximo":4,"regla":"Solicita/valida los datos necesarios antes de divulgar información protegida; no revela datos antes de confirmar la validación."},
+ {"criterio":"Sondeo y comprensión","maximo":2,"regla":"Escucha, identifica el motivo y hace preguntas pertinentes sin interrumpir ni asumir."},
+ {"criterio":"Exactitud y cumplimiento del manual","maximo":5,"regla":"Entrega información respaldada por la guía, consulta/indica validar SAF cuando corresponde y no inventa datos, montos, plazos ni políticas."},
+ {"criterio":"Procedimiento y derivación","maximo":3,"regla":"Sigue el procedimiento del tema y deriva al área responsable con la información disponible."},
+ {"criterio":"Comunicación y empatía","maximo":2,"regla":"Lenguaje claro, respetuoso, natural y sin tecnicismos innecesarios; maneja objeciones con calma."},
+ {"criterio":"Cierre y confirmación","maximo":2,"regla":"Confirma si queda alguna consulta, resume el siguiente paso y se despide correctamente."}
+]
+
+def normalizar(texto):
+    texto = unicodedata.normalize("NFKD", str(texto or ""))
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9 ]", " ", texto.lower()).strip()
+
+def escenario_por_id(identificador):
+    return next((x for x in ESCENARIOS if x["id"] == identificador), None)
+
+def elegir_escenario(motivo=""):
+    texto = normalizar(motivo)
+    if texto:
+        candidatos = []
+        for esc in ESCENARIOS:
+            puntos = sum(1 for kw in esc["keywords"] if normalizar(kw) in texto)
+            if puntos:
+                candidatos.append((puntos, esc))
+        if candidatos:
+            max_puntos = max(x[0] for x in candidatos)
+            return random.choice([x[1] for x in candidatos if x[0] == max_puntos])
+    return random.choice([x for x in ESCENARIOS if x["id"] != "consulta_general"])
+
+def instrucciones_escenario(escenario):
+    return (
+        "\nESCENARIO DE ESTA LLAMADA: " + escenario["nombre"] +
+        "\nObjetivo de la consulta: " + escenario["objetivo"] +
+        "\nGuía temática para el cliente simulado:\n" + GUIA_CONOCIMIENTO +
+        "\nLa guía es referencia de contexto para representar un caso real. "
+        "El cliente simulado no debe recitarla ni ayudar al asesor. Mantén una "
+        "actitud natural acorde al motivo; revela el motivo cuando el asesor "
+        "pregunte o encaje naturalmente. Si el perfil no contiene un dato, no "
+        "lo inventes. Para preguntas sobre política interna, responde como "
+        "cliente según el caso; no te conviertas en el agente ni des la solución."
+    )
