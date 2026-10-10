@@ -305,14 +305,20 @@ async def evaluar_llamada(payload: dict):
     tema = escenario_por_id(str(payload.get("escenario", "")))
     tema_nombre = tema["nombre"] if tema else "Consulta general del manual Pandero"
     cliente = genai.Client(api_key=api_key)
+    contexto_tema = (
+        f"El único tema autorizado para esta llamada es: {tema_nombre}. "
+        "Evalúa al asesor exclusivamente respecto de este tema. Ignora cualquier "
+        "mención incidental a otros procedimientos y no evalúes ni recomiendes "
+        "contenido de resolución de contrato, devoluciones, prenda u otros temas "
+        "si no corresponden al escenario seleccionado. No cambies el tema."
+    )
     prompt_evaluacion = f"""
 Evalúa una simulación de llamada de ATENCIÓN AL CLIENTE de Pandero, en Perú.
-Tema: {tema_nombre}
+{contexto_tema}
 La transcripción puede tener errores de reconocimiento de voz. Evalúa solo lo que se puede sostener por el texto y no inventes acciones que no aparecen.
 La puntuación debe sumar exactamente 20 puntos usando esta rúbrica:
 {json.dumps(RUBRICA, ensure_ascii=False)}
-Catálogo temático general:
-{GUIA_CONOCIMIENTO}
+Usa únicamente los procedimientos relacionados con el tema seleccionado. No uses el catálogo general para introducir temas adicionales.
 
 Extractos recuperados del PDF cargado para este tema:
 {buscar_fragmentos_manual(tema)}
@@ -376,8 +382,25 @@ async def llamada(websocket: WebSocket):
     else:
         asociado = random.choice(ASOCIADOS)
     campos_asociado = asociado["campos"]
+
+    # Evita que la ficha del Excel contradiga el tema seleccionado.
+    # En modo manual se omiten motivo/escenario y retos que puedan introducir
+    # otro procedimiento (por ejemplo, "resolución" dentro de "tentativa de venta").
+    datos_ficha = dict(asociado["datos_completos"])
+    if modo == "manual":
+        campos_fuera_de_tema = {
+            "motivoconsulta", "motivo", "consulta", "tipificacion",
+            "escenario", "caso", "tema", "temaconsulta",
+            "retoadicional", "retotema", "casoadicional"
+        }
+        datos_ficha = {
+            clave: valor
+            for clave, valor in datos_ficha.items()
+            if normalizar_columna(clave) not in campos_fuera_de_tema
+        }
+
     ficha_json = json.dumps(
-        asociado["datos_completos"],
+        datos_ficha,
         ensure_ascii=False,
         separators=(",", ":")
     )
@@ -404,8 +427,16 @@ el asesor en formación. Tú interpretas exclusivamente al asociado que llama.
 PERFIL PRIVADO DEL CLIENTE PARA ESTA LLAMADA:
 {ficha_json}
 
-TEMA DE LA CONSULTA DEL CLIENTE:
+TEMA ÚNICO DE LA CONSULTA DEL CLIENTE:
 {escenario["nombre"]}
+
+REGLA CRÍTICA DE ALCANCE:
+Toda la llamada debe permanecer dentro del tema indicado arriba. No menciones,
+preguntes, simules ni cambies a resolución de contrato, devoluciones, levantamiento
+de prenda u otro procedimiento, a menos que ese sea exactamente el tema asignado.
+Si el asesor pregunta por un asunto distinto, responde brevemente como cliente que
+tu consulta es únicamente sobre "{escenario["nombre"]}" y vuelve al motivo de esta llamada.
+No deduzcas temas de otras columnas del Excel ni introduzcas un segundo caso.
 
 REGLAS OBLIGATORIAS DE PAPEL:
 - Nunca actúes como asesor de Pandero, operador, capacitador, supervisor ni evaluador.
