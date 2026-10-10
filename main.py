@@ -11,6 +11,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, H
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from openpyxl import load_workbook
+from pypdf import PdfReader
 from google import genai
 from google.genai import types
 from pandero_knowledge import ESCENARIOS, GUIA_CONOCIMIENTO, RUBRICA, elegir_escenario, escenario_por_id, instrucciones_escenario
@@ -22,6 +23,10 @@ app = FastAPI()
 ASOCIADOS = []
 NOMBRE_BASE = None
 MAX_EXCEL_BYTES = 10 * 1024 * 1024
+MAX_PDF_BYTES = 15 * 1024 * 1024
+MANUAL_PDF_TEXTO = ""
+NOMBRE_MANUAL = None
+PAGINAS_MANUAL = 0
 
 
 def normalizar_columna(valor):
@@ -58,6 +63,88 @@ def valor_celda(valor):
     if isinstance(valor, float) and valor.is_integer():
         return str(int(valor))
     return str(valor).strip()
+
+
+
+def buscar_fragmentos_manual(escenario=None, limite=10):
+    """Busca párrafos relevantes en el PDF cargado, sin persistir el documento."""
+    if not MANUAL_PDF_TEXTO.strip():
+        return "El PDF de procedimientos no está cargado en esta sesión. No inventes reglas específicas; limita la práctica al tema general y reconoce si falta una regla exacta."
+    parrafos = [
+        re.sub(r"\\s+", " ", p).strip()
+        for p in re.split(r"\\n\\s*\\n", MANUAL_PDF_TEXTO)
+        if p.strip()
+    ]
+    if not escenario:
+        return "\\n\\n".join(parrafos[:limite])
+    claves = [escenario.get("nombre", ""), escenario.get("categoria", "")]
+    claves.extend(escenario.get("keywords", []))
+    terminos = [normalizar_columna(x) for x in claves if x and len(normalizar_columna(x)) > 2]
+    seleccion = []
+    for indice, parrafo in enumerate(parrafos):
+        normalizado = normalizar_columna(parrafo)
+        puntuacion = sum(1 for termino in terminos if termino and termino in normalizado)
+        if puntuacion:
+            seleccion.append((puntuacion, -indice, parrafo))
+    seleccion.sort(reverse=True)
+    if not seleccion:
+        # Fallback: buscar por palabras del nombre del escenario.
+        palabras = [x for x in normalizar_columna(escenario.get("nombre", "")).split() if len(x) > 3]
+        for indice, parrafo in enumerate(parrafos):
+            normalizado = normalizar_columna(parrafo)
+            puntuacion = sum(1 for palabra in palabras if palabra in normalizado)
+            if puntuacion:
+                seleccion.append((puntuacion, -indice, parrafo))
+        seleccion.sort(reverse=True)
+    fragmentos = [p[:2200] for _, _, p in seleccion[:limite]]
+    if not fragmentos:
+        return "No se encontró una sección claramente relacionada en el PDF cargado. No inventes datos; indica que debe validarse en el procedimiento interno."
+    return "\\n\\n--- Extracto del manual ---\\n\\n".join(fragmentos)
+
+
+@app.get("/api/manual/estado")
+async def estado_manual():
+    return {
+        "cargado": bool(MANUAL_PDF_TEXTO),
+        "archivo": NOMBRE_MANUAL if MANUAL_PDF_TEXTO else None,
+        "paginas": PAGINAS_MANUAL,
+        "caracteres": len(MANUAL_PDF_TEXTO)
+    }
+
+
+@app.post("/api/manual")
+async def cargar_manual(archivo: UploadFile = File(...)):
+    global MANUAL_PDF_TEXTO, NOMBRE_MANUAL, PAGINAS_MANUAL
+    nombre = archivo.filename or ""
+    if not nombre.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Selecciona el manual en formato PDF.")
+    contenido = await archivo.read()
+    if not contenido:
+        raise HTTPException(status_code=400, detail="El PDF está vacío.")
+    if len(contenido) > MAX_PDF_BYTES:
+        raise HTTPException(status_code=413, detail="El PDF supera el límite de 15 MB.")
+    try:
+        lector = PdfReader(BytesIO(contenido))
+        paginas = len(lector.pages)
+        if paginas < 1 or paginas > 150:
+            raise ValueError("El manual debe tener entre 1 y 150 páginas.")
+        texto = "\\n\\n".join((pagina.extract_text() or "") for pagina in lector.pages)
+        if len(texto.strip()) < 800:
+            raise ValueError("No se pudo extraer suficiente texto. Verifica que el PDF tenga texto seleccionable.")
+    except Exception as error:
+        if isinstance(error, HTTPException):
+            raise
+        raise HTTPException(status_code=400, detail=f"No se pudo leer el PDF: {str(error)}") from error
+    MANUAL_PDF_TEXTO = texto
+    NOMBRE_MANUAL = nombre
+    PAGINAS_MANUAL = paginas
+    return {
+        "ok": True,
+        "archivo": nombre,
+        "paginas": paginas,
+        "caracteres": len(texto),
+        "mensaje": f"Manual cargado en memoria: {paginas} páginas procesadas. El documento no se guarda en GitHub ni en disco."
+    }
 
 
 @app.get("/api/asociados/estado")
@@ -212,8 +299,11 @@ Tema: {tema_nombre}
 La transcripción puede tener errores de reconocimiento de voz. Evalúa solo lo que se puede sostener por el texto y no inventes acciones que no aparecen.
 La puntuación debe sumar exactamente 20 puntos usando esta rúbrica:
 {json.dumps(RUBRICA, ensure_ascii=False)}
-Base temática del manual Pandero (usar como referencia; si un dato no aparece aquí ni en la transcripción, no lo des por correcto):
+Catálogo temático general:
 {GUIA_CONOCIMIENTO}
+
+Extractos recuperados del PDF cargado para este tema:
+{buscar_fragmentos_manual(tema)}
 Transcripción:
 {chr(10).join(lineas)}
 Devuelve únicamente JSON válido con esta estructura:
@@ -299,6 +389,9 @@ FICHA DEL ASOCIADO ASIGNADO PARA TODA ESTA LLAMADA:
 {ficha_json}
 
 {instrucciones_escenario(escenario)}
+
+EXTRACTOS DEL PDF PARA EL ESCENARIO:
+{buscar_fragmentos_manual(escenario)}
 
 REGLAS DE INTERPRETACIÓN:
 - El asesor humano inicia la llamada. No saludes ni hables primero;
