@@ -11,6 +11,10 @@ const enlaceTexto = document.getElementById("descargarTexto");
 const archivoAsociados = document.getElementById("archivoAsociados");
 const botonCargarAsociados = document.getElementById("cargarAsociados");
 const estadoBase = document.getElementById("estadoBase");
+const modoEscenario = document.getElementById("modoEscenario");
+const escenarioSeleccionado = document.getElementById("escenarioSeleccionado");
+const panelEvaluacion = document.getElementById("evaluacion");
+const contenidoEvaluacion = document.getElementById("contenidoEvaluacion");
 
 let baseCargada = false;
 let conexion = null;
@@ -27,6 +31,8 @@ let llamadaActiva = false;
 let iniciando = false;
 let siguienteAudio = 0;
 let transcripcion = [];
+let escenarioActual = "";
+let evaluacionSolicitada = false;
 
 let blobAudioFinal = null;
 let urlAudioAnterior = null;
@@ -70,6 +76,124 @@ async function consultarEstadoBase() {
         botonIniciar.disabled = true;
         mostrarEstadoBase("No se pudo verificar la base. Recarga la página o vuelve a cargar el Excel.");
         console.error("Error consultando la base:", error);
+    }
+}
+
+
+async function cargarEscenarios() {
+    if (!escenarioSeleccionado) return;
+    try {
+        const respuesta = await fetch("/api/escenarios", { cache: "no-store" });
+        if (!respuesta.ok) throw new Error("No se pudieron cargar los temas.");
+        const datos = await respuesta.json();
+        escenarioSeleccionado.replaceChildren();
+        let categoriaActual = "";
+        let grupo = null;
+        for (const escenario of (datos.escenarios || [])) {
+            if (escenario.categoria !== categoriaActual) {
+                categoriaActual = escenario.categoria;
+                grupo = document.createElement("optgroup");
+                grupo.label = categoriaActual;
+                escenarioSeleccionado.appendChild(grupo);
+            }
+            const opcion = document.createElement("option");
+            opcion.value = escenario.id;
+            opcion.textContent = escenario.nombre;
+            grupo.appendChild(opcion);
+        }
+        if (!escenarioSeleccionado.options.length) throw new Error("La lista de temas está vacía.");
+        escenarioSeleccionado.disabled = modoEscenario?.value !== "manual";
+    } catch (error) {
+        console.error("Error cargando temas:", error);
+        escenarioSeleccionado.replaceChildren();
+        const opcion = document.createElement("option");
+        opcion.value = "";
+        opcion.textContent = "No se pudieron cargar los temas";
+        escenarioSeleccionado.appendChild(opcion);
+    }
+}
+
+function renderizarEvaluacion(datos) {
+    if (!panelEvaluacion || !contenidoEvaluacion) return;
+    contenidoEvaluacion.replaceChildren();
+    const nota = document.createElement("div");
+    nota.className = "nota-evaluacion";
+    nota.textContent = Number(datos.nota).toFixed(1) + " / 20";
+    contenidoEvaluacion.appendChild(nota);
+    const tema = document.createElement("p");
+    tema.textContent = "Tema: " + (datos.tema || "Consulta general");
+    contenidoEvaluacion.appendChild(tema);
+    const resumen = document.createElement("p");
+    resumen.textContent = datos.resumen || "Evaluación generada a partir de la transcripción disponible.";
+    contenidoEvaluacion.appendChild(resumen);
+    const grupos = [["Errores detectados", datos.errores], ["Recomendaciones", datos.recomendaciones], ["Fortalezas", datos.fortalezas]];
+    for (const [titulo, elementos] of grupos) {
+        const h = document.createElement("h3");
+        h.textContent = titulo;
+        contenidoEvaluacion.appendChild(h);
+        const ul = document.createElement("ul");
+        ul.className = "lista-evaluacion";
+        const lista = Array.isArray(elementos) ? elementos : [];
+        if (!lista.length) {
+            const li = document.createElement("li");
+            li.textContent = titulo === "Errores detectados" ? "No se identificaron errores verificables." : "Sin observaciones adicionales.";
+            ul.appendChild(li);
+        } else {
+            for (const texto of lista) {
+                const li = document.createElement("li");
+                li.textContent = String(texto);
+                ul.appendChild(li);
+            }
+        }
+        contenidoEvaluacion.appendChild(ul);
+    }
+    if (Array.isArray(datos.criterios) && datos.criterios.length) {
+        const h = document.createElement("h3");
+        h.textContent = "Detalle por criterio";
+        contenidoEvaluacion.appendChild(h);
+        for (const criterio of datos.criterios) {
+            const bloque = document.createElement("div");
+            bloque.className = "criterio-evaluacion";
+            const nombre = document.createElement("strong");
+            nombre.textContent = (criterio.nombre || "Criterio") + ": " + (criterio.puntaje ?? 0) + " / " + (criterio.maximo ?? 0);
+            const observacion = document.createElement("span");
+            observacion.textContent = criterio.observacion || "";
+            bloque.append(nombre, observacion);
+            contenidoEvaluacion.appendChild(bloque);
+        }
+    }
+    if (datos.requiere_revision_humana) {
+        const aviso = document.createElement("p");
+        aviso.textContent = "Revisión recomendada: la llamada pudo ser demasiado breve o la evidencia no fue suficiente para una calificación concluyente.";
+        contenidoEvaluacion.appendChild(aviso);
+    }
+    panelEvaluacion.hidden = false;
+    panelEvaluacion.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function evaluarLlamada() {
+    if (evaluacionSolicitada) return;
+    const hayAsesor = transcripcion.some(item => item.tipo === "Asesor");
+    const hayCliente = transcripcion.some(item => item.tipo === "Cliente");
+    if (!hayAsesor || !hayCliente) return;
+    evaluacionSolicitada = true;
+    mostrarEstado("Llamada finalizada. Generando evaluación sobre 20...");
+    if (panelEvaluacion) panelEvaluacion.hidden = false;
+    if (contenidoEvaluacion) contenidoEvaluacion.textContent = "Analizando la transcripción y los criterios de calidad...";
+    try {
+        const respuesta = await fetch("/api/evaluar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ transcripcion: transcripcion.slice(), escenario: escenarioActual })
+        });
+        const datos = await respuesta.json();
+        if (!respuesta.ok) throw new Error(datos.detail || "No se pudo evaluar la llamada.");
+        renderizarEvaluacion(datos);
+        mostrarEstado("Evaluación lista. Revisa la nota, errores y recomendaciones.");
+    } catch (error) {
+        console.error("Error evaluando llamada:", error);
+        if (contenidoEvaluacion) contenidoEvaluacion.textContent = "No se pudo generar la evaluación: " + error.message + ".";
+        mostrarEstado("La llamada terminó, pero no se pudo generar la evaluación.");
     }
 }
 
@@ -415,6 +539,7 @@ function detenerLlamada(mensaje = "Llamada finalizada.") {
     botonFinalizar.disabled = true;
 
     mostrarEstado(mensaje);
+    evaluarLlamada();
 }
 
 async function iniciarLlamada() {
@@ -432,6 +557,9 @@ async function iniciarLlamada() {
     botonFinalizar.disabled = true;
 
     ocultarDescargas();
+    if (panelEvaluacion) panelEvaluacion.hidden = true;
+    if (contenidoEvaluacion) contenidoEvaluacion.replaceChildren();
+    evaluacionSolicitada = false;
 
     transcripcion = [];
     partesGrabacion = [];
@@ -470,8 +598,13 @@ async function iniciarLlamada() {
         mostrarEstado("Conectando con el servidor...");
 
         const protocolo = location.protocol === "https:" ? "wss:" : "ws:";
+        const modo = modoEscenario?.value || "automatico";
+        escenarioActual = modo === "manual" ? (escenarioSeleccionado?.value || "") : "";
+        if (modo === "manual" && !escenarioActual) throw new Error("Selecciona un tema de práctica antes de iniciar.");
+        const parametros = new URLSearchParams({ modo });
+        if (escenarioActual) parametros.set("escenario", escenarioActual);
         const nuevaConexion = new WebSocket(
-            `${protocolo}//${location.host}/ws`
+            `${protocolo}//${location.host}/ws?${parametros.toString()}`
         );
 
         conexion = nuevaConexion;
@@ -643,7 +776,12 @@ function configurarSimulador() {
     if (botonCargarAsociados) {
         botonCargarAsociados.addEventListener("click", cargarBaseAsociados);
     }
-
+    if (modoEscenario && escenarioSeleccionado) {
+        modoEscenario.addEventListener("change", () => {
+            escenarioSeleccionado.disabled = modoEscenario.value !== "manual";
+        });
+    }
+    cargarEscenarios();
     consultarEstadoBase();
 
     botonFinalizar.addEventListener("click", () => {
