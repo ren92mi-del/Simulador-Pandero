@@ -67,16 +67,27 @@ def valor_celda(valor):
 
 
 def buscar_fragmentos_manual(escenario=None, limite=10):
-    """Busca párrafos relevantes en el PDF cargado, sin persistir el documento."""
+    """Busca fragmentos relevantes en el PDF cargado en memoria."""
     if not MANUAL_PDF_TEXTO.strip():
         return "El PDF de procedimientos no está cargado en esta sesión. No inventes reglas específicas; limita la práctica al tema general y reconoce si falta una regla exacta."
-    parrafos = [
-        re.sub(r"\s+", " ", p).strip()
-        for p in re.split(r"\n\s*\n", MANUAL_PDF_TEXTO)
-        if p.strip()
-    ]
+
+    bloques = re.split(r"\\n\\s*\\n", MANUAL_PDF_TEXTO.replace("\\r", ""))
+    parrafos = []
+    for bloque in bloques:
+        lineas = [re.sub(r"[ \\t]+", " ", linea).strip() for linea in bloque.splitlines() if linea.strip()]
+        actual = ""
+        for linea in lineas:
+            if len(actual) + len(linea) + 1 > 1500 and actual:
+                parrafos.append(actual)
+                actual = linea
+            else:
+                actual = (actual + " " + linea).strip()
+        if actual:
+            parrafos.append(actual)
+
     if not escenario:
-        return "\n\n".join(parrafos[:limite])
+        return "\\n\\n".join(parrafos[:limite])
+
     claves = [escenario.get("nombre", ""), escenario.get("categoria", "")]
     claves.extend(escenario.get("keywords", []))
     terminos = [normalizar_columna(x) for x in claves if x and len(normalizar_columna(x)) > 2]
@@ -86,9 +97,9 @@ def buscar_fragmentos_manual(escenario=None, limite=10):
         puntuacion = sum(1 for termino in terminos if termino and termino in normalizado)
         if puntuacion:
             seleccion.append((puntuacion, -indice, parrafo))
+
     seleccion.sort(reverse=True)
     if not seleccion:
-        # Fallback: buscar por palabras del nombre del escenario.
         palabras = [x for x in normalizar_columna(escenario.get("nombre", "")).split() if len(x) > 3]
         for indice, parrafo in enumerate(parrafos):
             normalizado = normalizar_columna(parrafo)
@@ -96,10 +107,11 @@ def buscar_fragmentos_manual(escenario=None, limite=10):
             if puntuacion:
                 seleccion.append((puntuacion, -indice, parrafo))
         seleccion.sort(reverse=True)
-    fragmentos = [p[:2200] for _, _, p in seleccion[:limite]]
+
+    fragmentos = [parrafo[:1800] for _, _, parrafo in seleccion[:limite]]
     if not fragmentos:
         return "No se encontró una sección claramente relacionada en el PDF cargado. No inventes datos; indica que debe validarse en el procedimiento interno."
-    return "\n\n--- Extracto del manual ---\n\n".join(fragmentos)
+    return "\\n\\n--- Extracto del manual ---\\n\\n".join(fragmentos)
 
 
 @app.get("/api/manual/estado")
