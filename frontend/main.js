@@ -698,6 +698,12 @@ async function iniciarLlamada() {
                 return;
             }
 
+            if (datos.tipo === "escenario_asignado") {
+                escenarioActual = datos.escenario || escenarioActual;
+                mostrarEstado("Tema de práctica: " + (datos.nombre || "asignado") + ". Inicia la conversación cuando estés listo.");
+                return;
+            }
+
             if (datos.error) {
                 mostrarEstado("Error del servidor: " + datos.error);
                 guardarTexto("Sistema", "Error: " + datos.error);
