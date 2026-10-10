@@ -71,12 +71,12 @@ def buscar_fragmentos_manual(escenario=None, limite=10):
     if not MANUAL_PDF_TEXTO.strip():
         return "El PDF de procedimientos no está cargado en esta sesión. No inventes reglas específicas; limita la práctica al tema general y reconoce si falta una regla exacta."
     parrafos = [
-        re.sub(r"\\s+", " ", p).strip()
-        for p in re.split(r"\\n\\s*\\n", MANUAL_PDF_TEXTO)
+        re.sub(r"\s+", " ", p).strip()
+        for p in re.split(r"\n\s*\n", MANUAL_PDF_TEXTO)
         if p.strip()
     ]
     if not escenario:
-        return "\\n\\n".join(parrafos[:limite])
+        return "\n\n".join(parrafos[:limite])
     claves = [escenario.get("nombre", ""), escenario.get("categoria", "")]
     claves.extend(escenario.get("keywords", []))
     terminos = [normalizar_columna(x) for x in claves if x and len(normalizar_columna(x)) > 2]
@@ -99,7 +99,7 @@ def buscar_fragmentos_manual(escenario=None, limite=10):
     fragmentos = [p[:2200] for _, _, p in seleccion[:limite]]
     if not fragmentos:
         return "No se encontró una sección claramente relacionada en el PDF cargado. No inventes datos; indica que debe validarse en el procedimiento interno."
-    return "\\n\\n--- Extracto del manual ---\\n\\n".join(fragmentos)
+    return "\n\n--- Extracto del manual ---\n\n".join(fragmentos)
 
 
 @app.get("/api/manual/estado")
