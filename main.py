@@ -140,7 +140,7 @@ async def cargar_manual(archivo: UploadFile = File(...)):
         paginas = len(lector.pages)
         if paginas < 1 or paginas > 150:
             raise ValueError("El manual debe tener entre 1 y 150 páginas.")
-        texto = "\\n\\n".join((pagina.extract_text() or "") for pagina in lector.pages)
+        texto = "\n\n".join((pagina.extract_text() or "") for pagina in lector.pages)
         if len(texto.strip()) < 800:
             raise ValueError("No se pudo extraer suficiente texto. Verifica que el PDF tenga texto seleccionable.")
     except Exception as error:
