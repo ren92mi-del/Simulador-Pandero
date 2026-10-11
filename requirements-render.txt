@@ -1,0 +1,9 @@
+streamlit
+streamlit-mic-recorder
+gTTS
+google-genai
+fastapi
+uvicorn[standard]
+openpyxl
+python-multipart
+pypdf>=5.0.0
