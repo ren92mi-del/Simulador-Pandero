@@ -176,10 +176,29 @@ async function cargarEscenarios() {
 function renderizarEvaluacion(datos) {
     if (!panelEvaluacion || !contenidoEvaluacion) return;
     contenidoEvaluacion.replaceChildren();
+    const notaValor = Math.max(0, Math.min(20, Number(datos.nota) || 0));
     const nota = document.createElement("div");
     nota.className = "nota-evaluacion";
-    nota.textContent = Number(datos.nota).toFixed(1) + " / 20";
+    nota.textContent = notaValor.toFixed(1) + " / 20";
     contenidoEvaluacion.appendChild(nota);
+
+    const panelNota = document.createElement("div");
+    panelNota.className = "nota-panel";
+    const circuloNota = document.createElement("div");
+    circuloNota.className = "nota-circulo";
+    circuloNota.style.setProperty("--nota-pct", String(notaValor * 5));
+    const textoNota = document.createElement("strong");
+    textoNota.textContent = notaValor.toFixed(1);
+    circuloNota.appendChild(textoNota);
+    const descripcionNota = document.createElement("div");
+    descripcionNota.className = "nota-descripcion";
+    const tituloNota = document.createElement("strong");
+    tituloNota.textContent = notaValor >= 16 ? "¡Buen trabajo!" : notaValor >= 12 ? "Vas avanzando" : "Oportunidad de mejora";
+    const detalleNota = document.createElement("span");
+    detalleNota.textContent = "Puntaje de calidad sobre 20 puntos. Revisa el detalle por criterio para identificar tus próximos pasos.";
+    descripcionNota.append(tituloNota, detalleNota);
+    panelNota.append(circuloNota, descripcionNota);
+    contenidoEvaluacion.appendChild(panelNota);
     const tema = document.createElement("p");
     tema.textContent = "Tema: " + (datos.tema || "Consulta general");
     contenidoEvaluacion.appendChild(tema);
@@ -227,7 +246,17 @@ function renderizarEvaluacion(datos) {
             nombre.textContent = (criterio.nombre || "Criterio") + ": " + (criterio.puntaje ?? 0) + " / " + (criterio.maximo ?? 0);
             const observacion = document.createElement("span");
             observacion.textContent = criterio.observacion || "";
-            bloque.append(nombre, observacion);
+            const barra = document.createElement("div");
+            barra.className = "grafico-criterio";
+            barra.setAttribute("role", "img");
+            const maximo = Math.max(0, Number(criterio.maximo) || 0);
+            const puntaje = Math.max(0, Number(criterio.puntaje) || 0);
+            const porcentaje = maximo > 0 ? Math.max(0, Math.min(100, puntaje / maximo * 100)) : 0;
+            barra.setAttribute("aria-label", "Cumplimiento del criterio: " + Math.round(porcentaje) + "%");
+            const relleno = document.createElement("span");
+            relleno.style.width = porcentaje + "%";
+            barra.appendChild(relleno);
+            bloque.append(nombre, observacion, barra);
             contenidoEvaluacion.appendChild(bloque);
         }
     }
