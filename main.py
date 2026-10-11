@@ -328,7 +328,6 @@ async def evaluar_llamada(payload: dict):
         raise HTTPException(status_code=400, detail="No hay contenido de llamada para evaluar.")
     tema = escenario_por_id(str(payload.get("escenario", "")))
     tema_nombre = tema["nombre"] if tema else "Consulta general del manual Pandero"
-    cliente = genai.Client(api_key=api_key)
     contexto_tema = (
         f"El único tema autorizado para esta llamada es: {tema_nombre}. "
         "Evalúa al asesor exclusivamente respecto de este tema. Ignora cualquier "
@@ -536,8 +535,6 @@ REGLAS OBLIGATORIAS DE PAPEL:
   la llamada. Durante la llamada, actúa solo como cliente.
 """
 
-    await websocket.send_json({"tipo": "escenario_asignado", "escenario": escenario["id"], "nombre": escenario["nombre"]})
-
     # Limita las sesiones activas para proteger la RAM del servidor.
     # No hay await entre la comprobación y el incremento.
     if LLAMADAS_ACTIVAS >= MAX_LLAMADAS_SIMULTANEAS:
@@ -551,6 +548,10 @@ REGLAS OBLIGATORIAS DE PAPEL:
     tareas = []
 
     try:
+        # Crear el cliente solo cuando la llamada ya tiene un cupo de concurrencia.
+        cliente = genai.Client(api_key=api_key)
+        await websocket.send_json({"tipo": "escenario_asignado", "escenario": escenario["id"], "nombre": escenario["nombre"]})
+
         async with cliente.aio.live.connect(
             model="gemini-3.8-live",
             config={
@@ -581,7 +582,17 @@ REGLAS OBLIGATORIAS DE PAPEL:
                     audio_base64 = datos.get("audio")
 
                     if audio_base64:
-                        audio = base64.b64decode(audio_base64)
+                        # Evita picos de memoria por mensajes de audio anormalmente grandes.
+                        if not isinstance(audio_base64, str) or len(audio_base64) > 1_000_000:
+                            await websocket.send_json({
+                                "error": "El fragmento de audio es demasiado grande. Reinicia la llamada e inténtalo nuevamente."
+                            })
+                            return
+                        try:
+                            audio = base64.b64decode(audio_base64, validate=True)
+                        except (ValueError, base64.binascii.Error):
+                            await websocket.send_json({"error": "Se recibió un fragmento de audio no válido."})
+                            return
 
                         await sesion.send_realtime_input(
                             audio=types.Blob(
