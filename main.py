@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI()
 
-# Permite que la interfaz pública de Vercel use la API alojada en Render.
+# CORS para dominios Vercel; cada despliegue usa su propio backend por mismo origen.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://simulador-pandero.vercel.app"],
