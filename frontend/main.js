@@ -1,5 +1,8 @@
 "use strict";
 
+// Interfaz en Vercel; API y voz en Render.
+const API_BASE_URL = "https://simulador-pandero.onrender.com";
+
 console.info("Simulador Pandero main.js build 2026-10-10 manual PDF, scenarios and evaluation");
 
 const botonIniciar = document.getElementById("iniciar");
@@ -69,7 +72,7 @@ function actualizarDisponibilidad() {
 
 async function consultarEstadoBase() {
     try {
-        const respuesta = await fetch("/api/asociados/estado", {
+        const respuesta = await fetch(`${API_BASE_URL}/api/asociados/estado`, {
             cache: "no-store"
         });
         if (!respuesta.ok) throw new Error("No se pudo consultar el estado de la base.");
@@ -91,7 +94,7 @@ async function consultarEstadoBase() {
 
 async function consultarEstadoManual() {
     try {
-        const respuesta = await fetch("/api/manual/estado", { cache: "no-store" });
+        const respuesta = await fetch(`${API_BASE_URL}/api/manual/estado`, { cache: "no-store" });
         if (!respuesta.ok) throw new Error("No se pudo consultar el estado del manual.");
         const datos = await respuesta.json();
         manualCargado = Boolean(datos.cargado && datos.caracteres > 0);
@@ -120,7 +123,7 @@ async function subirManualPDF() {
     try {
         const formulario = new FormData();
         formulario.append("archivo", archivo);
-        const respuesta = await fetch("/api/manual", { method: "POST", body: formulario });
+        const respuesta = await fetch(`${API_BASE_URL}/api/manual`, { method: "POST", body: formulario });
         const datos = await respuesta.json();
         if (!respuesta.ok) throw new Error(datos.detail || "No se pudo cargar el manual.");
         manualCargado = true;
@@ -140,7 +143,7 @@ async function subirManualPDF() {
 async function cargarEscenarios() {
     if (!escenarioSeleccionado) return;
     try {
-        const respuesta = await fetch("/api/escenarios", { cache: "no-store" });
+        const respuesta = await fetch(`${API_BASE_URL}/api/escenarios`, { cache: "no-store" });
         if (!respuesta.ok) throw new Error("No se pudieron cargar los temas.");
         const datos = await respuesta.json();
         escenarioSeleccionado.replaceChildren();
@@ -247,7 +250,7 @@ async function evaluarLlamada() {
     if (panelEvaluacion) panelEvaluacion.hidden = false;
     if (contenidoEvaluacion) contenidoEvaluacion.textContent = "Analizando la transcripción y los criterios de calidad...";
     try {
-        const respuesta = await fetch("/api/evaluar", {
+        const respuesta = await fetch(`${API_BASE_URL}/api/evaluar`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ transcripcion: transcripcion.slice(), escenario: escenarioActual })
@@ -277,7 +280,7 @@ async function cargarBaseAsociados() {
         const formulario = new FormData();
         formulario.append("archivo", archivo);
 
-        const respuesta = await fetch("/api/asociados", {
+        const respuesta = await fetch(`${API_BASE_URL}/api/asociados`, {
             method: "POST",
             body: formulario
         });
@@ -674,7 +677,7 @@ async function iniciarLlamada() {
         const parametros = new URLSearchParams({ modo });
         if (escenarioActual) parametros.set("escenario", escenarioActual);
         const nuevaConexion = new WebSocket(
-            `${protocolo}//${location.host}/ws?${parametros.toString()}`
+            `${API_BASE_URL.replace("https", "wss")}/ws?${parametros.toString()}`
         );
 
         conexion = nuevaConexion;
