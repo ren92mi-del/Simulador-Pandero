@@ -1,9 +1,9 @@
 "use strict";
 
-// Interfaz en Vercel; API y voz en Render.
-const API_BASE_URL = "https://simulador-pandero.onrender.com";
+// Cada despliegue usa su propio backend (mismo dominio): Vercel con Vercel y Render con Render.
+const API_BASE_URL = window.location.origin;
 
-console.info("Simulador Pandero main.js build 2026-10-10 manual PDF, scenarios and evaluation");
+console.info("Simulador Pandero main.js build 2026-10-11 independent deployments manual PDF, scenarios and evaluation");
 
 const botonIniciar = document.getElementById("iniciar");
 const botonFinalizar = document.getElementById("finalizar");
@@ -677,7 +677,7 @@ async function iniciarLlamada() {
         const parametros = new URLSearchParams({ modo });
         if (escenarioActual) parametros.set("escenario", escenarioActual);
         const nuevaConexion = new WebSocket(
-            `${API_BASE_URL.replace("https", "wss")}/ws?${parametros.toString()}`
+            `${protocolo}//${location.host}/ws?${parametros.toString()}`
         );
 
         conexion = nuevaConexion;
@@ -809,7 +809,7 @@ async function iniciarLlamada() {
             if (conexion !== nuevaConexion) return;
 
             mostrarEstado(
-                "Error de conexión con el servidor. Revisa Render."
+                "Error de conexión con el servidor. Revisa el servidor del simulador."
             );
         };
 
