@@ -1,10 +1,6 @@
-streamlit
-streamlit-mic-recorder
-gTTS
-google-genai
 fastapi
-uvicorn[standard]
+google-genai
 openpyxl
-
 python-multipart
 pypdf>=5.0.0
+uvicorn
