@@ -26,6 +26,7 @@ MAX_PDF_BYTES = 15 * 1024 * 1024
 MANUAL_PDF_TEXTO = ""
 NOMBRE_MANUAL = None
 PAGINAS_MANUAL = 0
+SEPARADOR_MANUAL = re.compile(r"\n\s*\n")
 
 # Límite de sesiones para proteger la RAM del servidor. Ajustable en Render.
 MAX_LLAMADAS_SIMULTANEAS = max(1, int(os.getenv("MAX_LLAMADAS_SIMULTANEAS", "1")))
@@ -90,7 +91,7 @@ def buscar_fragmentos_manual(escenario=None, limite=10):
     indice = 0
     longitud = len(texto)
     while inicio < longitud:
-        separador = re.search(r"\n\s*\n", texto, pos=inicio)
+        separador = SEPARADOR_MANUAL.search(texto, inicio)
         fin = separador.start() if separador else longitud
         bloque = texto[inicio:fin]
         inicio_siguiente = separador.end() if separador else longitud
