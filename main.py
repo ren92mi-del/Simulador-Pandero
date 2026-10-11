@@ -90,10 +90,10 @@ def buscar_fragmentos_manual(escenario=None, limite=10):
     indice = 0
     longitud = len(texto)
     while inicio < longitud:
-        separador = re.search(r"\n\s*\n", texto[inicio:])
-        fin = inicio + separador.start() if separador else longitud
+        separador = re.search(r"\n\s*\n", texto, pos=inicio)
+        fin = separador.start() if separador else longitud
         bloque = texto[inicio:fin]
-        inicio_siguiente = inicio + separador.end() if separador else longitud
+        inicio_siguiente = separador.end() if separador else longitud
         lineas = [re.sub(r"[ \t]+", " ", linea).strip() for linea in bloque.replace("\r", "").splitlines() if linea.strip()]
         partes = []
         actual = ""
