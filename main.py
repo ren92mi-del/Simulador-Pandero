@@ -396,15 +396,6 @@ async def llamada(websocket: WebSocket):
     global LLAMADAS_ACTIVAS
     await websocket.accept()
 
-    # Rechaza nuevas sesiones si ya se alcanzó el límite configurado.
-    # La comprobación y el incremento ocurren sin await entre ambos, evitando carreras.
-    if LLAMADAS_ACTIVAS >= MAX_LLAMADAS_SIMULTANEAS:
-        await websocket.send_json({
-            "error": "El simulador está atendiendo otra llamada. Espera a que termine e inténtalo nuevamente."
-        })
-        await websocket.close()
-        return
-    LLAMADAS_ACTIVAS += 1
 
     if not ASOCIADOS:
         await websocket.send_json({
@@ -545,6 +536,16 @@ REGLAS OBLIGATORIAS DE PAPEL:
 """
 
     await websocket.send_json({"tipo": "escenario_asignado", "escenario": escenario["id"], "nombre": escenario["nombre"]})
+
+    # Limita las sesiones activas para proteger la RAM del servidor.
+    # No hay await entre la comprobación y el incremento.
+    if LLAMADAS_ACTIVAS >= MAX_LLAMADAS_SIMULTANEAS:
+        await websocket.send_json({
+            "error": "El simulador está atendiendo otra llamada. Espera a que termine e inténtalo nuevamente."
+        })
+        await websocket.close()
+        return
+    LLAMADAS_ACTIVAS += 1
 
     tareas = []
 
