@@ -73,7 +73,7 @@ CATÁLOGO TEMÁTICO DEL MANUAL PANDERO:
 - Asambleas y adjudicación: duración y dinámica de asambleas, transmisión, sorteo, remate, formas de aplicación y adjudicación anticipada.
 - Movimientos contractuales: transferencia, cambio de titularidad, ampliación, financiamiento, adelantos parciales/totales, estado de cuenta de financiamiento, reactivación, resolución, unión/fusión y levantamiento de prenda.
 - Pagos: cuentas recaudadoras, cuotas mensuales, servicios varios, estado de cuenta, pago parcial, cancelación anticipada, pagos no reflejados y apropiación de dinero.
-- Devoluciones y retención: separación de vacante, devoluciones preinaugurales/postinaugurales, contratos adjudicados, casos especiales, penalidades/descuentos y seguimiento de solicitudes.
+- Devolución, devoluciones y retención: separación de vacante, devoluciones preinaugurales/postinaugurales, contratos adjudicados, casos especiales, penalidades/descuentos y seguimiento de solicitudes.
 - Cobranzas y recuperos: cuotas pendientes, recuperos prejudiciales/judiciales, situación legal, cartas notariales, entrega voluntaria, vehículo capturado, orden de captura y venta extrajudicial.
 - Adjudicación y entrega: evaluación crediticia, documentos de persona natural/jurídica, garantías, aval, comité de crédito, pedido vehicular, DUA, notaría, Sunarp, documentos y entrega de vehículos nuevos/seminuevos.
 - Vehículos: impuesto vehicular, GPS, proveedores, GNV/GLP, talleres autorizados, mantenimiento, fallas mecánicas y garantía extendida.
