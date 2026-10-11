@@ -5,6 +5,7 @@ import asyncio
 import random
 import re
 import unicodedata
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,8 @@ from pypdf import PdfReader
 from google import genai
 from google.genai import types
 from pandero_knowledge import ESCENARIOS, GUIA_CONOCIMIENTO, RUBRICA, elegir_escenario, escenario_por_id, instrucciones_escenario
+
+BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI()
 
@@ -143,6 +146,11 @@ def buscar_fragmentos_manual(escenario=None, limite=10):
     if not mejores:
         return "No se encontró una sección claramente relacionada en el PDF cargado. No inventes datos; indica que debe validarse en el procedimiento interno."
     return "\n\n--- Extracto del manual ---\n\n".join(parrafo for _, _, parrafo in mejores)
+
+
+@app.get("/api/health")
+async def health():
+    return {"ok": True, "servicio": "simulador-pandero", "backend": "fastapi"}
 
 
 @app.get("/api/manual/estado")
@@ -305,14 +313,14 @@ async def cargar_base_asociados(archivo: UploadFile = File(...)):
 
 app.mount(
     "/frontend",
-    StaticFiles(directory="frontend"),
+    StaticFiles(directory=str(BASE_DIR / "frontend")),
     name="frontend"
 )
 
 
 @app.get("/")
 async def inicio():
-    return FileResponse("frontend/index.html")
+    return FileResponse(str(BASE_DIR / "frontend" / "index.html"))
 
 
 @app.get("/api/escenarios")
@@ -324,7 +332,7 @@ async def listar_escenarios():
 async def evaluar_llamada(payload: dict):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=503, detail="Falta configurar GEMINI_API_KEY en Render.")
+        raise HTTPException(status_code=503, detail="Falta configurar GEMINI_API_KEY en las variables de entorno del servidor.")
     transcripcion = payload.get("transcripcion") or []
     if not isinstance(transcripcion, list) or len(transcripcion) < 2:
         raise HTTPException(status_code=400, detail="La transcripción es demasiado breve para evaluarla.")
@@ -457,7 +465,7 @@ async def llamada(websocket: WebSocket):
 
     if not api_key:
         await websocket.send_json({
-            "error": "Falta configurar GEMINI_API_KEY en Render."
+            "error": "Falta configurar GEMINI_API_KEY en las variables de entorno del servidor."
         })
         await websocket.close()
         return
