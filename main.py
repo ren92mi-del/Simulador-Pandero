@@ -5,7 +5,6 @@ import asyncio
 import random
 import re
 import unicodedata
-from io import BytesIO
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
@@ -67,51 +66,67 @@ def valor_celda(valor):
 
 
 def buscar_fragmentos_manual(escenario=None, limite=10):
-    """Busca fragmentos relevantes en el PDF cargado en memoria."""
-    if not MANUAL_PDF_TEXTO.strip():
+    """Recupera solo los fragmentos relevantes sin crear copias del PDF completo."""
+    texto = MANUAL_PDF_TEXTO
+    if not texto.strip():
         return "El PDF de procedimientos no está cargado en esta sesión. No inventes reglas específicas; limita la práctica al tema general y reconoce si falta una regla exacta."
 
-    bloques = re.split(r"\n\s*\n", MANUAL_PDF_TEXTO.replace("\r", ""))
-    parrafos = []
-    for bloque in bloques:
-        lineas = [re.sub(r"[ \t]+", " ", linea).strip() for linea in bloque.splitlines() if linea.strip()]
+    if escenario:
+        claves = [escenario.get("nombre", ""), escenario.get("categoria", "")]
+        claves.extend(escenario.get("keywords", []))
+        terminos = [normalizar_columna(x) for x in claves if x and len(normalizar_columna(x)) > 2]
+        palabras = [x for x in normalizar_columna(escenario.get("nombre", "")).split() if len(x) > 3]
+    else:
+        terminos = []
+        palabras = []
+
+    # Procesa un bloque a la vez. No crea listas duplicadas con todo el manual normalizado.
+    mejores = []
+    inicio = 0
+    indice = 0
+    longitud = len(texto)
+    while inicio < longitud:
+        separador = re.search(r"\n\s*\n", texto[inicio:])
+        fin = inicio + separador.start() if separador else longitud
+        bloque = texto[inicio:fin]
+        inicio_siguiente = inicio + separador.end() if separador else longitud
+        lineas = [re.sub(r"[ \t]+", " ", linea).strip() for linea in bloque.replace("\r", "").splitlines() if linea.strip()]
+        partes = []
         actual = ""
         for linea in lineas:
             if len(actual) + len(linea) + 1 > 1500 and actual:
-                parrafos.append(actual)
+                partes.append(actual)
                 actual = linea
             else:
                 actual = (actual + " " + linea).strip()
         if actual:
-            parrafos.append(actual)
+            partes.append(actual)
+
+        for parrafo in partes:
+            if not escenario:
+                if len(mejores) < limite:
+                    mejores.append(parrafo)
+            else:
+                normalizado = normalizar_columna(parrafo)
+                puntuacion = sum(1 for termino in terminos if termino and termino in normalizado)
+                if puntuacion == 0:
+                    puntuacion = sum(1 for palabra in palabras if palabra in normalizado)
+                if puntuacion:
+                    mejores.append((puntuacion, -indice, parrafo[:1800]))
+                    mejores.sort(key=lambda x: (x[0], x[1]), reverse=True)
+                    if len(mejores) > limite:
+                        mejores.pop()
+            indice += 1
+
+        if not separador:
+            break
+        inicio = inicio_siguiente
 
     if not escenario:
-        return "\n\n".join(parrafos[:limite])
-
-    claves = [escenario.get("nombre", ""), escenario.get("categoria", "")]
-    claves.extend(escenario.get("keywords", []))
-    terminos = [normalizar_columna(x) for x in claves if x and len(normalizar_columna(x)) > 2]
-    seleccion = []
-    for indice, parrafo in enumerate(parrafos):
-        normalizado = normalizar_columna(parrafo)
-        puntuacion = sum(1 for termino in terminos if termino and termino in normalizado)
-        if puntuacion:
-            seleccion.append((puntuacion, -indice, parrafo))
-
-    seleccion.sort(reverse=True)
-    if not seleccion:
-        palabras = [x for x in normalizar_columna(escenario.get("nombre", "")).split() if len(x) > 3]
-        for indice, parrafo in enumerate(parrafos):
-            normalizado = normalizar_columna(parrafo)
-            puntuacion = sum(1 for palabra in palabras if palabra in normalizado)
-            if puntuacion:
-                seleccion.append((puntuacion, -indice, parrafo))
-        seleccion.sort(reverse=True)
-
-    fragmentos = [parrafo[:1800] for _, _, parrafo in seleccion[:limite]]
-    if not fragmentos:
+        return "\n\n".join(mejores)
+    if not mejores:
         return "No se encontró una sección claramente relacionada en el PDF cargado. No inventes datos; indica que debe validarse en el procedimiento interno."
-    return "\n\n--- Extracto del manual ---\n\n".join(fragmentos)
+    return "\n\n--- Extracto del manual ---\n\n".join(parrafo for _, _, parrafo in mejores)
 
 
 @app.get("/api/manual/estado")
@@ -130,13 +145,15 @@ async def cargar_manual(archivo: UploadFile = File(...)):
     nombre = archivo.filename or ""
     if not nombre.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Selecciona el manual en formato PDF.")
-    contenido = await archivo.read()
-    if not contenido:
-        raise HTTPException(status_code=400, detail="El PDF está vacío.")
-    if len(contenido) > MAX_PDF_BYTES:
-        raise HTTPException(status_code=413, detail="El PDF supera el límite de 15 MB.")
     try:
-        lector = PdfReader(BytesIO(contenido))
+        archivo.file.seek(0, os.SEEK_END)
+        tamano = archivo.file.tell()
+        archivo.file.seek(0)
+        if tamano == 0:
+            raise HTTPException(status_code=400, detail="El PDF está vacío.")
+        if tamano > MAX_PDF_BYTES:
+            raise HTTPException(status_code=413, detail="El PDF supera el límite de 15 MB.")
+        lector = PdfReader(archivo.file)
         paginas = len(lector.pages)
         if paginas < 1 or paginas > 150:
             raise ValueError("El manual debe tener entre 1 y 150 páginas.")
@@ -179,18 +196,20 @@ async def cargar_base_asociados(archivo: UploadFile = File(...)):
             detail="Selecciona un archivo Excel con formato .xlsx."
         )
 
-    contenido = await archivo.read()
-    if not contenido:
-        raise HTTPException(status_code=400, detail="El archivo está vacío.")
-    if len(contenido) > MAX_EXCEL_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail="El archivo supera el límite de 10 MB."
-        )
-
     try:
+        archivo.file.seek(0, os.SEEK_END)
+        tamano = archivo.file.tell()
+        archivo.file.seek(0)
+        if tamano == 0:
+            raise HTTPException(status_code=400, detail="El archivo está vacío.")
+        if tamano > MAX_EXCEL_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail="El archivo supera el límite de 10 MB."
+            )
+
         libro = load_workbook(
-            BytesIO(contenido),
+            archivo.file,
             read_only=True,
             data_only=True
         )
