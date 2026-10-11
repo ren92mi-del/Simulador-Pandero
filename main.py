@@ -451,8 +451,7 @@ async def llamada(websocket: WebSocket):
         await websocket.close()
         return
 
-    cliente = genai.Client(api_key=api_key)
-
+    # El cliente Gemini se crea después de reservar el cupo de concurrencia.
     # El PDF orienta el caso y las dudas del cliente, pero nunca se entrega como
     # guion de respuestas ni como instrucciones para el asesor.
     referencia_pdf_cliente = buscar_fragmentos_manual(escenario, limite=6)
