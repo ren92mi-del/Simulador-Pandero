@@ -7,6 +7,7 @@ import re
 import unicodedata
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from openpyxl import load_workbook
@@ -16,6 +17,16 @@ from google.genai import types
 from pandero_knowledge import ESCENARIOS, GUIA_CONOCIMIENTO, RUBRICA, elegir_escenario, escenario_por_id, instrucciones_escenario
 
 app = FastAPI()
+
+# Permite que la interfaz pública de Vercel use la API alojada en Render.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://simulador-pandero.vercel.app"],
+    allow_origin_regex=r"https://[a-zA-Z0-9-]+\.vercel\.app",
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 # La base se mantiene solo en memoria del servidor: no se guarda en GitHub
 # ni se escribe en disco. Si Render reinicia, se vuelve a cargar el Excel.
