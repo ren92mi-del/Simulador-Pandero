@@ -5,6 +5,7 @@ import asyncio
 import random
 import re
 import unicodedata
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,9 +17,11 @@ from google import genai
 from google.genai import types
 from pandero_knowledge import ESCENARIOS, GUIA_CONOCIMIENTO, RUBRICA, elegir_escenario, escenario_por_id, instrucciones_escenario
 
+BASE_DIR = Path(__file__).resolve().parent
+
 app = FastAPI()
 
-# Permite que la interfaz pública de Vercel use la API alojada en Render.
+# CORS para dominios Vercel; cada despliegue usa su propio backend por mismo origen.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://simulador-pandero.vercel.app"],
@@ -143,6 +146,11 @@ def buscar_fragmentos_manual(escenario=None, limite=10):
     if not mejores:
         return "No se encontró una sección claramente relacionada en el PDF cargado. No inventes datos; indica que debe validarse en el procedimiento interno."
     return "\n\n--- Extracto del manual ---\n\n".join(parrafo for _, _, parrafo in mejores)
+
+
+@app.get("/api/health")
+async def health():
+    return {"ok": True, "servicio": "simulador-pandero", "backend": "fastapi"}
 
 
 @app.get("/api/manual/estado")
@@ -305,14 +313,14 @@ async def cargar_base_asociados(archivo: UploadFile = File(...)):
 
 app.mount(
     "/frontend",
-    StaticFiles(directory="frontend"),
+    StaticFiles(directory=str(BASE_DIR / "frontend")),
     name="frontend"
 )
 
 
 @app.get("/")
 async def inicio():
-    return FileResponse("frontend/index.html")
+    return FileResponse(str(BASE_DIR / "frontend" / "index.html"))
 
 
 @app.get("/api/escenarios")
@@ -324,7 +332,7 @@ async def listar_escenarios():
 async def evaluar_llamada(payload: dict):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=503, detail="Falta configurar GEMINI_API_KEY en Render.")
+        raise HTTPException(status_code=503, detail="Falta configurar GEMINI_API_KEY en las variables de entorno del servidor.")
     transcripcion = payload.get("transcripcion") or []
     if not isinstance(transcripcion, list) or len(transcripcion) < 2:
         raise HTTPException(status_code=400, detail="La transcripción es demasiado breve para evaluarla.")
@@ -375,11 +383,33 @@ REGLAS OBLIGATORIAS:
     try:
         # Este endpoint evalúa la llamada por separado; necesita su propio cliente Gemini.
         cliente = genai.Client(api_key=api_key)
-        respuesta = await cliente.aio.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=prompt_evaluacion,
-            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
-        )
+        # Reintenta errores temporales de saturación de Gemini (503/UNAVAILABLE).
+        respuesta = None
+        ultimo_error = None
+        for intento in range(4):
+            try:
+                respuesta = await cliente.aio.models.generate_content(
+                    model="gemini-3.8-flash",
+                    contents=prompt_evaluacion,
+                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+                )
+                break
+            except Exception as error_gemini:
+                ultimo_error = error_gemini
+                detalle = str(error_gemini).upper()
+                es_temporal = (
+                    "503" in detalle
+                    or "UNAVAILABLE" in detalle
+                    or "RESOURCE_EXHAUSTED" in detalle
+                    or "429" in detalle
+                )
+                if not es_temporal or intento == 3:
+                    raise
+                espera = 2 * (intento + 1)
+                print(f"Gemini temporalmente saturado; reintento {intento + 1}/3 en {espera}s.")
+                await asyncio.sleep(espera)
+        if respuesta is None:
+            raise ultimo_error or RuntimeError("Gemini no devolvió una evaluación.")
         resultado = json.loads(respuesta.text or "{}")
         criterios = resultado.get("criterios") if isinstance(resultado.get("criterios"), list) else []
         puntaje_suma = 0.0
@@ -463,7 +493,7 @@ async def llamada(websocket: WebSocket):
 
     if not api_key:
         await websocket.send_json({
-            "error": "Falta configurar GEMINI_API_KEY en Render."
+            "error": "Falta configurar GEMINI_API_KEY en las variables de entorno del servidor."
         })
         await websocket.close()
         return
