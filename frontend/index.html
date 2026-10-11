@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#07162e">
+    <meta name="theme-color" content="#edf7ff">
     <title>Simulador de Atención Pandero</title>
 
     <style>
@@ -355,6 +355,165 @@
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { transition: none !important; }
         }
+    
+        /* Rediseño visual claro: conserva los mismos controles e identificadores. */
+        :root {
+            color-scheme: light;
+            --fondo: #edf7ff;
+            --panel: #ffffff;
+            --panel-claro: #f4faff;
+            --azul: #2778d4;
+            --cian: #4bbfdf;
+            --naranja: #f5a34b;
+            --texto: #193553;
+            --suave: #5e7691;
+            --borde: #d8e8f5;
+        }
+        body {
+            color: var(--texto);
+            background:
+                radial-gradient(ellipse at 10% 6%, rgba(137, 207, 250, .45), transparent 38%),
+                radial-gradient(ellipse at 92% 90%, rgba(174, 232, 242, .48), transparent 36%),
+                #edf7ff;
+        }
+        .contenedor {
+            border: 1px solid #d6e8f7;
+            background: linear-gradient(145deg, #ffffff 0%, #f7fbff 100%);
+            box-shadow: 0 24px 70px rgba(57, 112, 160, .15), inset 0 1px 0 #fff;
+        }
+        .contenedor::before { background: linear-gradient(90deg, transparent, #8ad8ef, #4e8fe0, transparent); }
+        .marca { color: #48739b; }
+        .marca-icono { color: #2778d4; border-color: #cde6f7; background: #eaf6ff; }
+        h1 { color: #183b60; }
+        h1 span { color: #287bd0; }
+        .descripcion { color: #5c7690; }
+        .indicador { border-color: #dbeaf6; background: #f7fbff; box-shadow: 0 5px 16px rgba(64, 119, 164, .04); }
+        .indicador-icono { color: #2778d4; background: #e4f4ff; }
+        .indicador strong { color: #244969; }
+        .indicador small { color: #6c8299; }
+        .carga-base, #descargas, #evaluacion {
+            border-color: #d3e8f6;
+            background: linear-gradient(135deg, #f4fbff, #eef8ff);
+        }
+        .carga-base h2, #descargas h2 { color: #214a70; }
+        .carga-base p { color: #607a93; }
+        .selector-archivo {
+            border-color: #bfd9ee;
+            background: #fff;
+            color: #4c6883;
+        }
+        #cargarAsociados {
+            color: #fff;
+            border-color: transparent;
+            background: linear-gradient(115deg, #3286d8, #4bb8d7);
+            box-shadow: 0 7px 18px rgba(55, 139, 204, .16);
+        }
+        .opciones-simulacion { border-color: #dbeaf6; background: #f8fbff; }
+        .opciones-simulacion label { color: #315675; }
+        .opciones-simulacion select {
+            border-color: #cfe1f0;
+            background: #fff;
+            color: #244663;
+        }
+        .opciones-simulacion small { color: #6b8298; }
+        #estadoBase { color: #3377a9; }
+        #estado {
+            border-color: #cfe5f8;
+            background: #eaf6ff;
+            color: #315a7d;
+        }
+        #estado::before { background: #42b8d5; box-shadow: 0 0 0 4px rgba(66, 184, 213, .14); }
+        #iniciar {
+            background: linear-gradient(115deg, #277bd2, #48b5d8);
+            box-shadow: 0 9px 22px rgba(39, 123, 210, .19);
+        }
+        #finalizar {
+            border-color: #f4d3d9;
+            background: linear-gradient(115deg, #d94d66, #ed7b83);
+            box-shadow: 0 8px 20px rgba(217, 77, 102, .12);
+        }
+        #descargas a {
+            border-color: #d8e8f5;
+            background: #fff;
+            color: #2778b7;
+        }
+        #descargas a:hover { border-color: #8dcce8; background: #f0faff; }
+        .pie { color: #7891a8; }
+        button:focus-visible, a:focus-visible { outline-color: #318ad2; }
+        .ai-hero {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            width: fit-content;
+            max-width: 100%;
+            margin: 20px auto 8px;
+            padding: 10px 18px 10px 10px;
+            border: 1px solid #d2e9f8;
+            border-radius: 999px;
+            background: linear-gradient(110deg, #f0f9ff, #e6f7fc);
+            color: #3d6f98;
+            font-size: 12px;
+            font-weight: 750;
+        }
+        .ai-robot {
+            display: grid;
+            place-items: center;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #d8f3ff, #c3e8fb);
+            box-shadow: inset 0 0 0 1px #b5def4;
+            font-size: 32px;
+        }
+        .ai-hero strong { display: block; color: #245b89; font-size: 13px; margin-bottom: 3px; }
+        .nota-panel {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin: 14px 0 18px;
+            padding: 16px;
+            border: 1px solid #d2e7f6;
+            border-radius: 18px;
+            background: #fff;
+        }
+        .nota-circulo {
+            display: grid;
+            place-items: center;
+            width: 94px;
+            height: 94px;
+            flex: 0 0 94px;
+            border-radius: 50%;
+            background: conic-gradient(#328bd4 calc(var(--nota-pct, 0) * 1%), #e2eef7 0);
+            position: relative;
+        }
+        .nota-circulo::before {
+            content: "";
+            position: absolute;
+            inset: 7px;
+            border-radius: 50%;
+            background: #fff;
+        }
+        .nota-circulo strong { position: relative; z-index: 1; color: #245b89; font-size: 21px; }
+        .nota-descripcion strong { display: block; color: #244969; font-size: 14px; margin-bottom: 5px; }
+        .nota-descripcion span { color: #6a8299; font-size: 12px; line-height: 1.5; }
+        .nota-evaluacion { display: none; }
+        .grafico-criterio { margin-top: 9px; height: 8px; overflow: hidden; border-radius: 999px; background: #e2eef7; }
+        .grafico-criterio span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #48bdd7, #3987d5); }
+        .criterio-evaluacion { padding: 13px 0; border-bottom: 1px solid #e0edf6; }
+        .criterio-evaluacion strong { color: #284f70; }
+        .criterio-evaluacion span { color: #617c95; }
+        .lista-evaluacion { color: #526f89; }
+        .feedback-evaluacion { padding: 13px 15px; border-left: 4px solid #51b9d7; border-radius: 8px; background: #eef9fd; color: #3c607c; line-height: 1.65; }
+        #evaluacion h2, #evaluacion h3 { color: #214a70; }
+        @media (max-width: 520px) {
+            .ai-hero { font-size: 11px; }
+            .ai-robot { width: 48px; height: 48px; font-size: 28px; }
+            .nota-panel { gap: 12px; padding: 12px; }
+            .nota-circulo { width: 78px; height: 78px; flex-basis: 78px; }
+            .nota-circulo strong { font-size: 18px; }
+        }
+
     </style>
 </head>
 
@@ -371,6 +530,11 @@
         </div>
 
         <h1>Simulador de Atención <span>Pandero</span></h1>
+
+        <div class="ai-hero" aria-label="Asistente de inteligencia artificial">
+            <span class="ai-robot" aria-hidden="true">🤖</span>
+            <span><strong>Tu coach virtual de atención</strong>Practica · recibe feedback · mejora cada llamada</span>
+        </div>
 
         <p class="descripcion">
             Entrena conversaciones de atención al cliente en tiempo real. Practica por voz y descarga el registro de tu sesión.
@@ -502,6 +666,6 @@
         <p class="pie">ENTORNO DE PRÁCTICA · SIMULACIÓN DE ATENCIÓN AL CLIENTE</p>
     </main>
 
-    <script src="/frontend/main.js?v=20261011-1" defer onerror="this.onerror=null;this.src='/main.js?v=20261011-1'"></script>
+    <script src="/frontend/main.js?v=20261011-2" defer onerror="this.onerror=null;this.src='/main.js?v=20261011-2'"></script>
 </body>
 </html>
