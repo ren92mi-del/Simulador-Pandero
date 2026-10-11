@@ -181,8 +181,17 @@ function renderizarEvaluacion(datos) {
     tema.textContent = "Tema: " + (datos.tema || "Consulta general");
     contenidoEvaluacion.appendChild(tema);
     const resumen = document.createElement("p");
-    resumen.textContent = datos.resumen || "Evaluación generada a partir de la transcripción disponible.";
+    resumen.textContent = "Resumen: " + (datos.resumen || "Evaluación generada a partir de la transcripción disponible.");
     contenidoEvaluacion.appendChild(resumen);
+    if (datos.feedback) {
+        const tituloFeedback = document.createElement("h3");
+        tituloFeedback.textContent = "Feedback para el asesor";
+        contenidoEvaluacion.appendChild(tituloFeedback);
+        const feedback = document.createElement("p");
+        feedback.className = "feedback-evaluacion";
+        feedback.textContent = datos.feedback;
+        contenidoEvaluacion.appendChild(feedback);
+    }
     const grupos = [["Errores detectados", datos.errores], ["Recomendaciones", datos.recomendaciones], ["Fortalezas", datos.fortalezas]];
     for (const [titulo, elementos] of grupos) {
         const h = document.createElement("h3");
