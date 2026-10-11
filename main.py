@@ -27,6 +27,10 @@ MANUAL_PDF_TEXTO = ""
 NOMBRE_MANUAL = None
 PAGINAS_MANUAL = 0
 
+# Límite de sesiones para proteger la RAM del servidor. Ajustable en Render.
+MAX_LLAMADAS_SIMULTANEAS = max(1, int(os.getenv("MAX_LLAMADAS_SIMULTANEAS", "1")))
+LLAMADAS_ACTIVAS = 0
+
 
 def normalizar_columna(valor):
     texto = unicodedata.normalize("NFKD", str(valor or ""))
@@ -389,7 +393,18 @@ REGLAS OBLIGATORIAS:
 
 @app.websocket("/ws")
 async def llamada(websocket: WebSocket):
+    global LLAMADAS_ACTIVAS
     await websocket.accept()
+
+    # Rechaza nuevas sesiones si ya se alcanzó el límite configurado.
+    # La comprobación y el incremento ocurren sin await entre ambos, evitando carreras.
+    if LLAMADAS_ACTIVAS >= MAX_LLAMADAS_SIMULTANEAS:
+        await websocket.send_json({
+            "error": "El simulador está atendiendo otra llamada. Espera a que termine e inténtalo nuevamente."
+        })
+        await websocket.close()
+        return
+    LLAMADAS_ACTIVAS += 1
 
     if not ASOCIADOS:
         await websocket.send_json({
@@ -702,6 +717,7 @@ REGLAS OBLIGATORIAS DE PAPEL:
                 return_exceptions=True
             )
 
+        LLAMADAS_ACTIVAS = max(0, LLAMADAS_ACTIVAS - 1)
         try:
             await websocket.close()
         except Exception:
