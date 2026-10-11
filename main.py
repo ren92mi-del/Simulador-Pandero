@@ -383,11 +383,33 @@ REGLAS OBLIGATORIAS:
     try:
         # Este endpoint evalúa la llamada por separado; necesita su propio cliente Gemini.
         cliente = genai.Client(api_key=api_key)
-        respuesta = await cliente.aio.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=prompt_evaluacion,
-            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
-        )
+        # Reintenta errores temporales de saturación de Gemini (503/UNAVAILABLE).
+        respuesta = None
+        ultimo_error = None
+        for intento in range(4):
+            try:
+                respuesta = await cliente.aio.models.generate_content(
+                    model="gemini-3.8-flash",
+                    contents=prompt_evaluacion,
+                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+                )
+                break
+            except Exception as error_gemini:
+                ultimo_error = error_gemini
+                detalle = str(error_gemini).upper()
+                es_temporal = (
+                    "503" in detalle
+                    or "UNAVAILABLE" in detalle
+                    or "RESOURCE_EXHAUSTED" in detalle
+                    or "429" in detalle
+                )
+                if not es_temporal or intento == 3:
+                    raise
+                espera = 2 * (intento + 1)
+                print(f"Gemini temporalmente saturado; reintento {intento + 1}/3 en {espera}s.")
+                await asyncio.sleep(espera)
+        if respuesta is None:
+            raise ultimo_error or RuntimeError("Gemini no devolvió una evaluación.")
         resultado = json.loads(respuesta.text or "{}")
         criterios = resultado.get("criterios") if isinstance(resultado.get("criterios"), list) else []
         puntaje_suma = 0.0
