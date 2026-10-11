@@ -1,0 +1,20 @@
+name: Validación de Python
+
+on:
+  push:
+    branches: [main, optimizacion-ram-segura]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verificar sintaxis
+        run: python -m compileall -q main.py pandero_knowledge.py
