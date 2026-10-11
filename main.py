@@ -400,8 +400,14 @@ REGLAS OBLIGATORIAS:
         resultado["criterios"] = criterios
         return resultado
     except Exception as error:
-        print("Error evaluando llamada:", type(error).__name__, str(error))
-        raise HTTPException(status_code=502, detail="No se pudo generar la evaluación. Intenta nuevamente.") from error
+        # Diagnóstico breve para identificar errores de API/modelo en despliegues.
+        tipo_error = type(error).__name__
+        detalle_error = str(error).replace("\n", " ").strip()[:500]
+        print("Error evaluando llamada:", tipo_error, detalle_error)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falló la evaluación con Gemini ({tipo_error}). {detalle_error or 'Sin detalle adicional.'}"
+        ) from error
 
 
 @app.websocket("/ws")
