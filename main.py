@@ -317,7 +317,30 @@ async def inicio():
 
 @app.get("/api/escenarios")
 async def listar_escenarios():
-    return {"escenarios": [{k: e[k] for k in ("id", "categoria", "nombre", "objetivo")} for e in ESCENARIOS]}
+    # Orden de las categorías según los 16 temas del PDF de capacitación.
+    orden_temas = {
+        "Tema 1: ¿Qué es Pandero? y datos generales": 1,
+        "Tema 2: El contrato, sus tipos, programa y productos": 2,
+        "Tema 3: Tentativa de venta": 3,
+        "Tema 4: Asambleas y modalidades de adjudicación": 4,
+        "Tema 5: Movimientos administrativos": 5,
+        "Tema 6: Los 5 pasos para obtener o tramitar tu auto nuevo": 6,
+        "Tema 7: Los 5 pasos para obtener o tramitar tu auto seminuevo": 7,
+        "Tema 8: Trámite de contratos cancelados": 8,
+        "Tema 9: Pagos, estado de cuenta y otros similares": 9,
+        "Tema 10: Seguros y siniestros": 10,
+        "Tema 11: Gestiones adicionales relacionadas al bien entregado": 11,
+        "Tema 12: Gestiones de gestión al asociado y reclamos": 12,
+        "Tema 13: Gestión de recuperos / asociados con bien moroso": 13,
+        "Tema 14: Devolución de aportes y casos especiales": 14,
+        "Tema 15: Beneficios y campañas vigentes": 15,
+        "Tema 16: Pandero Casa y los pasos para la inversión inmobiliaria": 16,
+    }
+    escenarios_ordenados = sorted(
+        ESCENARIOS,
+        key=lambda e: (orden_temas.get(e.get("categoria", ""), 99), e.get("nombre", ""))
+    )
+    return {"escenarios": [{k: e[k] for k in ("id", "categoria", "nombre", "objetivo")} for e in escenarios_ordenados]}
 
 
 @app.post("/api/evaluar")
