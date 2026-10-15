@@ -119,7 +119,10 @@ async function subirManualPDF() {
         return;
     }
     if (botonCargarManual) botonCargarManual.disabled = true;
-    if (estadoManual) estadoManual.textContent = "Leyendo y procesando el PDF en memoria...";
+    const habiaManualAnterior = manualCargado;
+    if (estadoManual) estadoManual.textContent = habiaManualAnterior
+        ? "Validando el nuevo PDF. El manual actual seguirá activo si el archivo nuevo falla..."
+        : "Leyendo y procesando el PDF en memoria...";
     try {
         const formulario = new FormData();
         formulario.append("archivo", archivo);
@@ -131,8 +134,8 @@ async function subirManualPDF() {
         archivoManual.value = "";
         actualizarDisponibilidad();
     } catch (error) {
-        manualCargado = false;
-        if (estadoManual) estadoManual.textContent = "Error: " + error.message;
+        manualCargado = habiaManualAnterior;
+        if (estadoManual) estadoManual.textContent = "No se reemplazó el manual anterior. " + (habiaManualAnterior ? "Sigue activo. " : "") + "Error: " + error.message;
         actualizarDisponibilidad();
         console.error("Error cargando el manual PDF:", error);
     } finally {
@@ -303,7 +306,10 @@ async function cargarBaseAsociados() {
     }
 
     botonCargarAsociados.disabled = true;
-    mostrarEstadoBase("Cargando y validando el archivo Excel...");
+    const habiaBaseAnterior = baseCargada;
+    mostrarEstadoBase(habiaBaseAnterior
+        ? "Validando el nuevo Excel. La base actual seguirá activa si el archivo nuevo falla..."
+        : "Cargando y validando el archivo Excel...");
 
     try {
         const formulario = new FormData();
@@ -324,7 +330,9 @@ async function cargarBaseAsociados() {
         mostrarEstadoBase(datos.mensaje + " La ficha completa no se muestra en pantalla.");
         archivoAsociados.value = "";
     } catch (error) {
-        mostrarEstadoBase("Error: " + error.message);
+        baseCargada = habiaBaseAnterior;
+        actualizarDisponibilidad();
+        mostrarEstadoBase("No se reemplazó la base anterior. " + (habiaBaseAnterior ? "La base actual sigue activa. " : "") + "Error: " + error.message);
         console.error("Error cargando Excel:", error);
     } finally {
         botonCargarAsociados.disabled = false;
