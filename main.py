@@ -602,6 +602,7 @@ async def llamada(websocket: WebSocket):
         escenario, asociado = random.choice(coincidencias or pares_compatibles)
 
     campos_asociado = asociado["campos"]
+    subtipo_devolucion = subtipo_devolucion_compatible(asociado) if escenario.get("id") == "devoluciones" else None
 
     # Evita que la ficha del Excel contradiga el tema seleccionado.
     # En modo manual se omiten motivo/escenario y retos que puedan introducir
@@ -648,6 +649,15 @@ PERFIL PRIVADO DEL CLIENTE PARA ESTA LLAMADA:
 
 TEMA INTERNO DE LA SIMULACIÓN (NO LO DIGAS TEXTUALMENTE AL ASESOR):
 {escenario["nombre"]}
+
+SUBTIPO DE DEVOLUCIÓN VALIDADO (solo si el tema es devolución):
+{subtipo_devolucion or "No aplica"}
+
+Si el tema es devolución, interpreta únicamente el subtipo validado:
+- preinaugural: el asociado es no adjudicado, aún no participó en su primera asamblea y no es reactivado ni resuelto.
+- postinaugural: el asociado es no adjudicado o resuelto y ya participó en su primera asamblea.
+- adjudicado: el asociado está adjudicado y solicita devolución en vez de tramitar la adquisición del bien.
+No cambies a otro subtipo durante la llamada ni inventes datos que no aparezcan en la ficha. Si el subtipo es "No aplica", esa combinación no debería iniciarse.
 
 REFERENCIA PRIVADA DEL PDF OFICIAL DE PANDERO:
 {referencia_pdf_cliente}
