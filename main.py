@@ -490,7 +490,7 @@ async def llamada(websocket: WebSocket):
         campos_fuera_de_tema = {
             "motivoconsulta", "motivo", "consulta", "tipificacion",
             "escenario", "caso", "tema", "temaconsulta",
-            "retoadicional", "retotema", "casoadicional"
+            "retotema", "casoadicional"
         }
         datos_ficha = {
             clave: valor
@@ -580,6 +580,28 @@ REGLAS OBLIGATORIAS DE PAPEL:
   pregunta a la vez y no cambies a temas contractuales posteriores como resolución.
 - Mantén el perfil emocional y la personalidad indicados en la ficha si existen.
   No leas la ficha ni menciones que tienes instrucciones o retos.
+
+REGLAS PARA USAR LOS RETOS DEL EXCEL:
+- Perfil_emocional describe la emoción base del cliente; Personalidad describe su
+  estilo al conversar. Intensidad, si está entre 1 y 5, regula cuánto se nota esa
+  emoción, sin convertir al cliente en agresivo ni hacer imposible la atención.
+- Reto_validacion describe cómo se comporta durante la verificación. No lo conviertas
+  en una consulta temática ni pidas tú los datos de seguridad. Espera a que el asesor
+  pregunte y responde solo con el dato exacto que exista en la ficha.
+- Reto_comprension describe cómo reacciona a la explicación del asesor. Si no entiende,
+  pide una aclaración natural y relacionada únicamente con el tema asignado.
+- Reto_objecion describe el tipo de objeción que puede expresar. Úsala solo cuando
+  encaje con lo que el asesor acaba de decir y con el tema seleccionado.
+- Reto_adicional describe un comportamiento extra. Adáptalo al tema seleccionado;
+  no introduzcas por él un procedimiento diferente ni una pregunta fija.
+- Los cuatro retos son comportamientos flexibles, no un guion ni temas obligatorios.
+  Distribúyelos gradualmente durante la llamada: una dificultad por vez y solo cuando
+  sea natural. No hagas todas las objeciones juntas ni repitas el mismo reto en cada turno.
+- El tema elegido en la interfaz y el PDF cargado tienen prioridad sobre cualquier texto
+  de reto del Excel. Si una celda antigua menciona otro procedimiento, ignora ese detalle
+  temático y conserva únicamente el comportamiento general que pueda adaptarse al tema.
+- Si un reto está vacío, omítelo. No inventes reglas de Pandero para completar el reto.
+
 - Habla en español peruano natural, con respuestas breves y espontáneas. No recites
   datos ni hagas varias preguntas de golpe.
 - Cuando el asesor te pida un dato de validación, responde solo con el valor exacto
