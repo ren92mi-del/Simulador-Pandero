@@ -547,7 +547,7 @@
                 </svg>
                 Base de asociados
             </h2>
-            <p>Sube el archivo Excel (.xlsx). Al iniciar cada llamada se asignará un asociado al azar y la IA mantendrá ese perfil durante toda la práctica.</p>
+            <p><strong>Base de clientes actualizable.</strong> Sube el Excel (.xlsx) vigente. Si ya había una base cargada, el archivo nuevo la reemplazará solo cuando termine de validarse correctamente. Los cambios se aplican a las siguientes llamadas; no necesitas editar el código.</p>
             <input id="archivoAsociados" class="selector-archivo" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Seleccionar base de asociados Excel">
             <button id="cargarAsociados" type="button">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -565,7 +565,7 @@
                 </svg>
                 Manual de procedimientos
             </h2>
-            <p>Sube el PDF de Pandero para que la IA consulte los procedimientos relacionados con cada escenario. El documento se procesa en memoria y no se guarda en el repositorio.</p>
+            <p>Sube el manual PDF vigente para que la IA consulte los procedimientos relacionados con cada escenario. Puedes reemplazarlo cuando cambie: el nuevo manual se activa solo si se procesa correctamente. Se conserva en memoria del servidor y, si Render se reinicia, tendrás que cargarlo nuevamente.</p>
             <input id="archivoManual" class="selector-archivo" type="file" accept=".pdf,application/pdf" aria-label="Seleccionar manual de procedimientos en PDF">
             <button id="cargarManual" type="button">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -666,6 +666,6 @@
         <p class="pie">ENTORNO DE PRÁCTICA · SIMULACIÓN DE ATENCIÓN AL CLIENTE</p>
     </main>
 
-    <script src="/frontend/main.js?v=20261011-2" defer onerror="this.onerror=null;this.src='/main.js?v=20261011-2'"></script>
+    <script src="/frontend/main.js?v=20261015-1" defer onerror="this.onerror=null;this.src='/main.js?v=20261011-2'"></script>
 </body>
 </html>
