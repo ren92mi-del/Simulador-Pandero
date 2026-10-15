@@ -132,6 +132,27 @@ def subtipo_devolucion_compatible(asociado):
     return None
 
 
+def genero_probable_por_nombre(asociado):
+    """Estima género probable solo para seleccionar la voz; si no hay señal, usa predeterminada."""
+    nombre = normalizar_columna(asociado.get("campos", {}).get("nombre", ""))
+    tokens = nombre.split()[:3]
+    femeninos = {"maria","ana","josefa","carmen","rosa","lucia","luisa","paola","karla","carla","andrea","gabriela","daniela","valeria","camila","ximena","jimena","fiorella","milagros","diana","elizabeth","silvia","patricia","claudia","brenda","katherine","catherine","sofia","fernanda","lesly","leslie","mercedes","angela","angelica","jessica","yuliana","cinthya","cynthia","marietta","gloria","luz"}
+    masculinos = {"jose","juan","luis","carlos","jorge","miguel","angel","edgar","ramiro","roberto","fidel","adrian","jaime","cesar","oscar","david","daniel","alexander","alejandro","fernando","francisco","manuel","pedro","pablo","diego","marco","marcos","raul","ruben","ivan","enrique","hector","christian","cristian","andres","alberto","antonio","julio","williams","wilmer","brayan","bryan","jaen"}
+    if any(token in femeninos for token in tokens):
+        return "femenina"
+    if any(token in masculinos for token in tokens):
+        return "masculina"
+    return None
+
+
+def voz_gemini_por_nombre(asociado):
+    genero = genero_probable_por_nombre(asociado)
+    if genero == "masculina":
+        return "Puck"
+    # Voz femenina predeterminada si el nombre es ambiguo o no se reconoce.
+    return "Kore"
+
+
 def escenario_compatible_con_asociado(escenario, asociado):
     """Valida compatibilidad contractual antes de crear la simulación."""
     if not escenario or not asociado:
@@ -772,6 +793,7 @@ REGLAS PARA USAR LOS RETOS DEL EXCEL:
             model="gemini-3.8-live",
             config={
                 "response_modalities": ["AUDIO"],
+                "speech_config": {"voice_config": {"prebuilt_voice_config": {"voice_name": voz_gemini_por_nombre(asociado)}}},
                 "system_instruction": instrucciones,
                 "input_audio_transcription": {},
                 "output_audio_transcription": {},
