@@ -1,7 +1,10 @@
 "use strict";
 
-// Interfaz en Vercel; API y voz en Render.
-const API_BASE_URL = "https://simulador-pandero.onrender.com";
+// En Hugging Face la interfaz y la API viven en el mismo Space.
+// Se conserva el endpoint antiguo solo para que el despliegue de Vercel existente siga funcionando.
+const API_BASE_URL = location.hostname.endsWith("vercel.app")
+    ? "https://simulador-pandero.onrender.com"
+    : "";
 
 console.info("Simulador Pandero main.js build 2026-10-10 manual PDF, scenarios and evaluation");
 
@@ -706,7 +709,9 @@ async function iniciarLlamada() {
         const parametros = new URLSearchParams({ modo });
         if (escenarioActual) parametros.set("escenario", escenarioActual);
         const nuevaConexion = new WebSocket(
-            `${API_BASE_URL.replace("https", "wss")}/ws?${parametros.toString()}`
+            (API_BASE_URL
+                ? `${API_BASE_URL.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/ws?${parametros.toString()}`
+                : `${protocolo}//${location.host}/ws?${parametros.toString()}`)
         );
 
         conexion = nuevaConexion;
