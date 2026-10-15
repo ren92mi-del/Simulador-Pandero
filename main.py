@@ -319,21 +319,21 @@ async def inicio():
 async def listar_escenarios():
     # Orden de las categorías según los 16 temas del PDF de capacitación.
     orden_temas = {
-        "Tema 1: ¿Qué es Pandero? y datos generales": 1,
-        "Tema 2: El contrato, sus tipos, programa y productos": 2,
+        "Tema 1: ¿Qué es Pandero? y datos generales.": 1,
+        "Tema 2: El contrato, su tipos, Programa y Productos": 2,
         "Tema 3: Tentativa de venta": 3,
-        "Tema 4: Asambleas y modalidades de adjudicación": 4,
-        "Tema 5: Movimientos administrativos": 5,
+        "Tema 4: Asambleas y modalidades de adjudicación:": 4,
+        "Tema 5: Movimiento administrativos": 5,
         "Tema 6: Los 5 pasos para obtener o tramitar tu auto nuevo": 6,
         "Tema 7: Los 5 pasos para obtener o tramitar tu auto seminuevo": 7,
-        "Tema 8: Trámite de contratos cancelados": 8,
-        "Tema 9: Pagos, estado de cuenta y otros similares": 9,
-        "Tema 10: Seguros y siniestros": 10,
+        "Tema 8: Tramite de contrato Cancelados": 8,
+        "Tema 9: Pagos, estado de cuenta y otros similares:": 9,
+        "Tema 10: Seguros y Siniestros": 10,
         "Tema 11: Gestiones adicionales relacionadas al bien entregado": 11,
-        "Tema 12: Gestiones de gestión al asociado y reclamos": 12,
-        "Tema 13: Gestión de recuperos / asociados con bien moroso": 13,
+        "Tema 12: Gestiones de Gestión al asociado y Reclamos:": 12,
+        "Tema 13: Gestión de Recuperos / asociados con bien morosos": 13,
         "Tema 14: Devolución de aportes y casos especiales": 14,
-        "Tema 15: Beneficios y campañas vigentes": 15,
+        "Tema 15: Beneficios y Campaña vigentes": 15,
         "Tema 16: Pandero Casa y los pasos para la inversión inmobiliaria": 16,
     }
     escenarios_ordenados = sorted(
