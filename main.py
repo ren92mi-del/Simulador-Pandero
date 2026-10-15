@@ -18,7 +18,7 @@ from pandero_knowledge import ESCENARIOS, GUIA_CONOCIMIENTO, RUBRICA, elegir_esc
 
 app = FastAPI()
 
-# Permite que la interfaz pública de Vercel use la API alojada en Render.
+# CORS para el despliegue existente en Vercel. Hugging Face usa la API en el mismo origen.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://simulador-pandero.vercel.app"],
@@ -39,7 +39,7 @@ NOMBRE_MANUAL = None
 PAGINAS_MANUAL = 0
 SEPARADOR_MANUAL = re.compile(r"\n\s*\n")
 
-# Límite de sesiones para proteger la RAM del servidor. Ajustable en Render.
+# Límite de sesiones para proteger la memoria del servidor. Ajustable mediante variable de entorno.
 MAX_LLAMADAS_SIMULTANEAS = max(1, int(os.getenv("MAX_LLAMADAS_SIMULTANEAS", "1")))
 LLAMADAS_ACTIVAS = 0
 
@@ -324,7 +324,7 @@ async def listar_escenarios():
 async def evaluar_llamada(payload: dict):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=503, detail="Falta configurar GEMINI_API_KEY en Render.")
+        raise HTTPException(status_code=503, detail="Falta configurar GEMINI_API_KEY en los secretos del despliegue.")
     transcripcion = payload.get("transcripcion") or []
     if not isinstance(transcripcion, list) or len(transcripcion) < 2:
         raise HTTPException(status_code=400, detail="La transcripción es demasiado breve para evaluarla.")

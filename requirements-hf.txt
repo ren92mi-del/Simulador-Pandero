@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+google-genai
+openpyxl
+python-multipart
+pypdf>=5.0.0
