@@ -76,12 +76,64 @@ def estado_normalizado(asociado):
     return normalizar_columna(estado)
 
 
+def texto_campos_asociado(asociado):
+    """Texto normalizado de la ficha para validar reglas contractuales."""
+    partes = []
+    for origen in (asociado.get("campos", {}), asociado.get("datos_completos", {})):
+        for clave, valor in origen.items():
+            partes.append(normalizar_columna(clave) + ":" + normalizar_columna(valor))
+    return " ".join(partes)
+
+
+def indicador_primera_asamblea(asociado):
+    """
+    Retorna True/False si la base incluye un campo explícito de primera asamblea;
+    None si no hay evidencia suficiente.
+    """
+    datos = asociado.get("datos_completos", {})
+    claves_asamblea = {
+        "primeraasamblea", "participoenlaprimeraasamblea",
+        "asambleainaugural", "fechaprimeraasamblea",
+        "fechainauguracion", "asambleainauguralrealizada"
+    }
+    for clave, valor in datos.items():
+        if normalizar_columna(clave) not in claves_asamblea:
+            continue
+        v = normalizar_columna(valor)
+        if v in {"si", "true", "1", "realizada", "participado", "participada"}:
+            return True
+        if v in {"no", "false", "0", "pendiente", "norealizada", "noparticipo"}:
+            return False
+        if re.search(r"\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}", str(valor)):
+            return True
+    return None
+
+
+def subtipo_devolucion_compatible(asociado):
+    """
+    Preinaugural: no adjudicado, sin primera asamblea y no reactivado/resuelto.
+    Postinaugural: no adjudicado/resuelto con primera asamblea.
+    Adjudicado: estado adjudicado.
+    """
+    estado = estado_normalizado(asociado)
+    texto = texto_campos_asociado(asociado)
+    asamblea = indicador_primera_asamblea(asociado)
+
+    if "adjudicado" in estado and "noadjudicado" not in estado:
+        return "adjudicado"
+
+    if estado in {"noadjudicado", "resuelto", "resuelta"} and asamblea is True:
+        return "postinaugural"
+
+    reactivado = "reactivado" in estado or "reactivado" in texto
+    if estado in {"noadjudicado", "noadjudicada"} and asamblea is False and not reactivado:
+        return "preinaugural"
+
+    return None
+
+
 def escenario_compatible_con_asociado(escenario, asociado):
-    """
-    Reglas de compatibilidad confirmadas para el simulador.
-    Solo se bloquean combinaciones que conocemos con certeza; no se inventan
-    restricciones contractuales para los demás temas.
-    """
+    """Valida compatibilidad contractual antes de crear la simulación."""
     if not escenario or not asociado:
         return False
 
@@ -92,6 +144,9 @@ def escenario_compatible_con_asociado(escenario, asociado):
     estados_sin_seguro_vehicular = {"resuelto", "resuelta"}
     if tema in {"seguro_vehicular", "seguro_propio", "siniestro"} and estado in estados_sin_seguro_vehicular:
         return False
+
+    if tema == "devoluciones":
+        return subtipo_devolucion_compatible(asociado) is not None
 
     return True
 
