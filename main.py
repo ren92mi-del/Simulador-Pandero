@@ -70,6 +70,39 @@ ALIAS_COLUMNAS = {
 }
 
 
+def estado_normalizado(asociado):
+    campos = asociado.get("campos", {})
+    estado = campos.get("estado_contrato", "")
+    return normalizar_columna(estado)
+
+
+def escenario_compatible_con_asociado(escenario, asociado):
+    """
+    Reglas de compatibilidad confirmadas para el simulador.
+    Solo se bloquean combinaciones que conocemos con certeza; no se inventan
+    restricciones contractuales para los demás temas.
+    """
+    if not escenario or not asociado:
+        return False
+
+    estado = estado_normalizado(asociado)
+    tema = escenario.get("id", "")
+
+    # Un contrato Resuelto no debe simular consultas de seguro vehicular.
+    estados_sin_seguro_vehicular = {"resuelto", "resuelta"}
+    if tema in {"seguro_vehicular", "seguro_propio", "siniestro"} and estado in estados_sin_seguro_vehicular:
+        return False
+
+    return True
+
+
+def asociados_compatibles(escenario):
+    return [
+        asociado for asociado in ASOCIADOS
+        if escenario_compatible_con_asociado(escenario, asociado)
+    ]
+
+
 def valor_celda(valor):
     if valor is None:
         return ""
@@ -468,18 +501,51 @@ async def llamada(websocket: WebSocket):
         await websocket.close()
         return
 
-    # Perfil y escenario se fijan al inicio y permanecen constantes durante la llamada.
+    # El tema y el perfil se seleccionan como un par compatible antes de iniciar Gemini.
     modo = websocket.query_params.get("modo", "automatico")
     tema_solicitado = websocket.query_params.get("escenario", "")
-    escenario = escenario_por_id(tema_solicitado) if modo == "manual" else None
-    if escenario is None:
-        motivo_base = " ".join(str(v) for v in ASOCIADOS[0].get("campos", {}).values()) if ASOCIADOS else ""
-        # Seleccionar primero el perfil para alinear el escenario con su motivo de consulta.
-        asociado = random.choice(ASOCIADOS)
-        motivo_base = asociado.get("campos", {}).get("motivo_consulta", "")
-        escenario = elegir_escenario(motivo_base)
+
+    if modo == "manual":
+        escenario = escenario_por_id(tema_solicitado)
+        if not escenario:
+            await websocket.send_json({"error": "Selecciona un tema válido antes de iniciar la llamada."})
+            await websocket.close()
+            return
+
+        candidatos = asociados_compatibles(escenario)
+        if not candidatos:
+            await websocket.send_json({
+                "error": "No hay asociados compatibles con el estado de contrato para el tema «"
+                         + escenario["nombre"] + "». Carga una base con un perfil válido o selecciona otro tema."
+            })
+            await websocket.close()
+            return
+        asociado = random.choice(candidatos)
     else:
-        asociado = random.choice(ASOCIADOS)
+        # Modo automático/aleatorio: elegir entre pares tema-asociado válidos.
+        pares_compatibles = [
+            (escenario_disponible, asociado_disponible)
+            for escenario_disponible in ESCENARIOS
+            for asociado_disponible in asociados_compatibles(escenario_disponible)
+            if escenario_disponible.get("id") != "consulta_general"
+        ]
+        if not pares_compatibles:
+            await websocket.send_json({
+                "error": "No hay combinaciones de tema y asociado compatibles. Revisa los estados de contrato de la base Excel."
+            })
+            await websocket.close()
+            return
+
+        # Si el Excel tiene motivo de consulta, se priorizan coincidencias válidas.
+        coincidencias = []
+        for tema_candidato, asociado_candidato in pares_compatibles:
+            motivo = asociado_candidato.get("campos", {}).get("motivo_consulta", "")
+            tema_elegido_por_motivo = elegir_escenario(motivo) if motivo else None
+            if tema_elegido_por_motivo and tema_elegido_por_motivo["id"] == tema_candidato["id"]:
+                coincidencias.append((tema_candidato, asociado_candidato))
+
+        escenario, asociado = random.choice(coincidencias or pares_compatibles)
+
     campos_asociado = asociado["campos"]
 
     # Evita que la ficha del Excel contradiga el tema seleccionado.
