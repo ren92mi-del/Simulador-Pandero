@@ -179,6 +179,85 @@ def asociados_compatibles(escenario):
     ]
 
 
+async def elegir_asociado_con_pdf(escenario, candidatos, api_key):
+    """
+    Elige un perfil compatible con el tema a partir del manual PDF cargado.
+    Envía solo campos de perfil útiles para la selección, no DNI, teléfono,
+    correo ni número de contrato. Devuelve (asociado, mensaje_error).
+    """
+    if not MANUAL_PDF_TEXTO.strip():
+        return None, "Primero carga el manual PDF oficial de Pandero para validar el tema antes de iniciar la simulación."
+    if not candidatos:
+        return None, "No hay perfiles compatibles con el tema seleccionado."
+
+    referencia = buscar_fragmentos_manual(escenario, limite=10)
+    if not referencia or "No se encontró una sección claramente relacionada" in referencia:
+        return None, "No se encontró información suficiente del tema en el PDF cargado. Verifica el manual o selecciona otro tema."
+
+    # Evita prompts excesivos si la base contiene muchos asociados.
+    muestra = list(candidatos)
+    random.shuffle(muestra)
+    muestra = muestra[:40]
+    perfiles = []
+    for indice, asociado in enumerate(muestra):
+        campos_perfil = {}
+        for clave, valor in asociado.get("campos", {}).items():
+            if clave in {"estado_contrato", "cuotas_pendientes"}:
+                campos_perfil[clave] = valor
+        for clave, valor in asociado.get("datos_completos", {}).items():
+            clave_norm = normalizar_columna(clave)
+            if any(p in clave_norm for p in (
+                "perfil", "personalidad", "emocion", "intensidad",
+                "reto", "tipocliente", "tipodeasociado", "bienentregado",
+                "primeraasamblea", "programa", "producto"
+            )):
+                if not any(p in clave_norm for p in (
+                    "nombre", "apellido", "dni", "documento", "telefono",
+                    "celular", "correo", "email", "contrato", "codigo"
+                )):
+                    campos_perfil[clave] = valor
+        perfiles.append({"indice": indice, "perfil": campos_perfil})
+
+    prompt = f"""
+Tu tarea es seleccionar un perfil de asociado para una simulación de atención al cliente de Pandero.
+Tema seleccionado por el formador: {escenario.get("nombre", "")}
+Objetivo del escenario: {escenario.get("objetivo", "")}
+
+Fragmentos del manual oficial PDF cargado:
+{referencia}
+
+Perfiles candidatos del Excel (solo datos de estado y características del perfil):
+{json.dumps(perfiles, ensure_ascii=False)}
+
+Reglas:
+- Basa la compatibilidad en el procedimiento del PDF y en los datos explícitos del perfil.
+- Respeta el tema seleccionado; no lo cambies por el motivo de consulta ni por un reto de otra fila.
+- Si el PDF establece una condición de estado contractual, elige solo un perfil que la cumpla.
+- No deduzcas condiciones que no aparezcan en el PDF o en el perfil.
+- Prioriza un perfil que permita practicar el tema y tenga información suficiente; no elijas por azar si otro encaja claramente mejor.
+- Si ningún perfil es claramente compatible con los datos disponibles, devuelve indice -1.
+- Devuelve exclusivamente JSON válido: {{"indice": número, "motivo": "explicación breve basada en datos visibles"}}.
+"""
+    try:
+        cliente = genai.Client(api_key=api_key)
+        respuesta = await cliente.aio.models.generate_content(
+            model="gemini-3.8-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1
+            )
+        )
+        seleccion = json.loads(respuesta.text or "{}")
+        indice = int(seleccion.get("indice", -1))
+        if indice < 0 or indice >= len(muestra):
+            return None, "El manual y los datos del Excel no permitieron confirmar un perfil compatible. No se inició la llamada para evitar inventar condiciones."
+        return muestra[indice], None
+    except Exception as error:
+        print("Error validando perfil con PDF:", type(error).__name__, str(error)[:300])
+        return None, "No se pudo validar el perfil con el manual mediante Gemini. Inténtalo nuevamente; no se inició la llamada."
+
+
 def valor_celda(valor):
     if valor is None:
         return ""
@@ -577,9 +656,18 @@ async def llamada(websocket: WebSocket):
         await websocket.close()
         return
 
-    # El tema y el perfil se seleccionan como un par compatible antes de iniciar Gemini.
+    # El tema se define primero y Gemini debe validar el perfil contra el PDF oficial.
     modo = websocket.query_params.get("modo", "automatico")
     tema_solicitado = websocket.query_params.get("escenario", "")
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        await websocket.send_json({"error": "Falta configurar GEMINI_API_KEY en el servidor."})
+        await websocket.close()
+        return
+    if not MANUAL_PDF_TEXTO.strip():
+        await websocket.send_json({"error": "Carga primero el manual PDF oficial de Pandero para que el simulador pueda validar el tema y el perfil."})
+        await websocket.close()
+        return
 
     if modo == "manual":
         escenario = escenario_por_id(tema_solicitado)
@@ -587,40 +675,25 @@ async def llamada(websocket: WebSocket):
             await websocket.send_json({"error": "Selecciona un tema válido antes de iniciar la llamada."})
             await websocket.close()
             return
-
-        candidatos = asociados_compatibles(escenario)
-        if not candidatos:
-            await websocket.send_json({
-                "error": "No hay asociados compatibles con el estado de contrato para el tema «"
-                         + escenario["nombre"] + "». Carga una base con un perfil válido o selecciona otro tema."
-            })
-            await websocket.close()
-            return
-        asociado = random.choice(candidatos)
     else:
-        # Modo automático/aleatorio: elegir entre pares tema-asociado válidos.
-        pares_compatibles = [
-            (escenario_disponible, asociado_disponible)
-            for escenario_disponible in ESCENARIOS
-            for asociado_disponible in asociados_compatibles(escenario_disponible)
-            if escenario_disponible.get("id") != "consulta_general"
+        escenarios_disponibles = [
+            e for e in ESCENARIOS
+            if e.get("id") != "consulta_general" and asociados_compatibles(e)
         ]
-        if not pares_compatibles:
+        if not escenarios_disponibles:
             await websocket.send_json({
                 "error": "No hay combinaciones de tema y asociado compatibles. Revisa los estados de contrato de la base Excel."
             })
             await websocket.close()
             return
+        escenario = random.choice(escenarios_disponibles)
 
-        # Si el Excel tiene motivo de consulta, se priorizan coincidencias válidas.
-        coincidencias = []
-        for tema_candidato, asociado_candidato in pares_compatibles:
-            motivo = asociado_candidato.get("campos", {}).get("motivo_consulta", "")
-            tema_elegido_por_motivo = elegir_escenario(motivo) if motivo else None
-            if tema_elegido_por_motivo and tema_elegido_por_motivo["id"] == tema_candidato["id"]:
-                coincidencias.append((tema_candidato, asociado_candidato))
-
-        escenario, asociado = random.choice(coincidencias or pares_compatibles)
+    candidatos = asociados_compatibles(escenario)
+    asociado, error_seleccion = await elegir_asociado_con_pdf(escenario, candidatos, api_key)
+    if error_seleccion:
+        await websocket.send_json({"error": error_seleccion})
+        await websocket.close()
+        return
 
     campos_asociado = asociado["campos"]
     subtipo_devolucion = subtipo_devolucion_compatible(asociado) if escenario.get("id") == "devoluciones" else None
@@ -646,15 +719,6 @@ async def llamada(websocket: WebSocket):
         ensure_ascii=False,
         separators=(",", ":")
     )
-
-    api_key = os.getenv("GEMINI_API_KEY")
-
-    if not api_key:
-        await websocket.send_json({
-            "error": "Falta configurar GEMINI_API_KEY en Render."
-        })
-        await websocket.close()
-        return
 
     # El cliente Gemini se crea después de reservar el cupo de concurrencia.
     # El PDF orienta el caso y las dudas del cliente, pero nunca se entrega como
